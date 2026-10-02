@@ -66,7 +66,7 @@ subtest 'refusals' => sub {
   my $wrong = auth( username => 'admin', password => 'guess' );
   ok( !eval { $wrong->token; 1 }, 'wrong password croaks' );
   isa_ok( $@, 'WWW::Keycloak::Error::API' );
-  like( "$@", qr/\Aadmin login failed: 401 - invalid_grant/, 'and says so' );
+  like( "$@", qr/\Aadmin login failed: 400 - invalid_grant/, 'and says so (Keycloak answers a wrong password with 400)' );
   unlike( "$@", qr/guess/, 'without the password' );
 
   ok( !eval { auth( client_id => 'x', client_secret => 'leaked-secret' )->token; 1 }, 'wrong secret croaks' );

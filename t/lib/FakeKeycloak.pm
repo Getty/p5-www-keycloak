@@ -57,7 +57,7 @@ sub rotate_key {
   my $key = Crypt::PK::RSA->new;
   $key->generate_key( 256, 65537 );
   $self->{key} = $key;
-  $self->{kid} = 'key-'.++$self->{seq};
+  $self->{kid} = 'rotated-'.++$self->{seq};
   return;
 }
 
@@ -159,7 +159,7 @@ sub _oidc {
     push @{ $self->{logins} }, { realm => $realm, %$body };
     my $grant = $body->{grant_type} // '';
     if ( $grant eq 'password' ) {
-      return $self->_reply( 401, { error => 'invalid_grant', error_description => 'Invalid user credentials' } )
+      return $self->_reply( 400, { error => 'invalid_grant', error_description => 'Invalid user credentials' } )
         unless ( $body->{username} // '' ) eq 'admin' && ( $body->{password} // '' ) eq 'admin';
     }
     elsif ( $grant eq 'client_credentials' ) {
@@ -218,6 +218,7 @@ sub _admin {
       if grep { $_->{clientId} eq $body->{clientId} } values %{ $realm->{clients} };
     my $id = $self->_id;
     $realm->{clients}{$id} = { publicClient => JSON::MaybeXS::false, enabled => JSON::MaybeXS::true, attributes => {}, %$body, id => $id };
+    $realm->{clients}{$id}{$_} = [ sort @{ $body->{$_} } ] for grep { ref $body->{$_} eq 'ARRAY' } qw( redirectUris webOrigins );
     return $created->( '/clients/'.$id );
   }
   if ( $rest =~ m{\A/clients/([^/]+)(.*)\z} ) {
@@ -225,7 +226,15 @@ sub _admin {
     my $client = $realm->{clients}{$id} or return $self->_reply( 404, { error => 'Could not find client' } );
     if ( $sub eq '' ) {
       return $self->_reply( 200, { %$client } ) if $method eq 'GET';
-      if ( $method eq 'PUT' ) { $realm->{clients}{$id} = { %$body, id => $id }; return $self->_reply(204) }
+      if ( $method eq 'PUT' ) {
+        # a client update ignores the scope lists, and Keycloak keeps URI lists sorted
+        my %new = ( %$body, id => $id );
+        $new{$_} = $client->{$_} for grep { exists $client->{$_} } qw( defaultClientScopes optionalClientScopes );
+        delete @new{ grep { !exists $client->{$_} } qw( defaultClientScopes optionalClientScopes ) };
+        $new{$_} = [ sort @{ $new{$_} } ] for grep { ref $new{$_} eq 'ARRAY' } qw( redirectUris webOrigins );
+        $realm->{clients}{$id} = \%new;
+        return $self->_reply(204);
+      }
       if ( $method eq 'DELETE' ) { delete $realm->{clients}{$id}; return $self->_reply(204) }
     }
     return $self->_reply( 200, { type => 'secret', value => 'client-secret-'.$id } ) if $sub eq '/client-secret';
@@ -272,7 +281,18 @@ sub _admin {
     my $user = $realm->{users}{$id} or return $self->_reply( 404, { error => 'User not found' } );
     if ( $sub eq '' ) {
       if ( $method eq 'GET' ) { my %u = %$user; delete $u{credentials}; return $self->_reply( 200, \%u ) }
-      if ( $method eq 'PUT' ) { my %b = %$body; delete $b{credentials}; %$user = ( %$user, %b, id => $id ); return $self->_reply(204) }
+      if ( $method eq 'PUT' ) {
+        my %b = %$body;
+        delete $b{credentials};
+        # the user profile: a PUT that carries attributes drops the profile
+        # fields it does not name, and attribute values are lists of strings
+        if ( exists $b{attributes} ) {
+          delete @{$user}{ grep { !exists $b{$_} } qw( email firstName lastName ) };
+          $b{attributes} = { map { $_ => ref $b{attributes}{$_} eq 'ARRAY' ? $b{attributes}{$_} : [ $b{attributes}{$_} ] } keys %{ $b{attributes} || {} } };
+        }
+        %$user = ( %$user, %b, id => $id );
+        return $self->_reply(204);
+      }
       if ( $method eq 'DELETE' ) { delete $realm->{users}{$id}; return $self->_reply(204) }
     }
     if ( $sub eq '/reset-password' ) {

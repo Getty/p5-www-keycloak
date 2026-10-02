@@ -6,7 +6,7 @@ use Moo;
 with 'WWW::Keycloak::Role::HTTP';
 use Crypt::JWT qw( decode_jwt );
 use Scalar::Util qw( blessed );
-use Types::Standard qw( ArrayRef InstanceOf Str );
+use Types::Standard qw( ArrayRef CodeRef InstanceOf Int Str );
 use WWW::Keycloak::Error::Validation;
 use namespace::autoclean;
 
@@ -67,6 +67,37 @@ Signature algorithms L</verify_token> accepts. Never C<none>, never HMAC.
 
 =cut
 
+has jwks_min_age => (
+  is      => 'ro',
+  isa     => Int,
+  default => 60
+);
+
+=attr jwks_min_age
+
+Seconds that have to pass before L</verify_token> fetches the keys again for a
+token signed with an unknown key. Default 60, so that a stream of forged tokens
+does not become a stream of requests to Keycloak.
+
+=cut
+
+has now => (
+  is      => 'ro',
+  isa     => CodeRef,
+  default => sub { sub { time } }
+);
+
+=attr now
+
+Coderef returning the current epoch. For tests.
+
+=cut
+
+has _jwks_fetched => (
+  is       => 'rw',
+  init_arg => undef
+);
+
 has discovery => (
   is       => 'lazy',
   init_arg => undef
@@ -114,7 +145,10 @@ sub jwks_uri               { $_[0]->endpoint('jwks_uri') }
 
 sub jwks {
   my ( $self, %opt ) = @_;
-  $self->_jwks( $self->send_request( GET => $self->jwks_uri )->{data} ) if $opt{force_refresh} || !$self->_jwks;
+  if ( $opt{force_refresh} || !$self->_jwks ) {
+    $self->_jwks( $self->send_request( GET => $self->jwks_uri )->{data} );
+    $self->_jwks_fetched( $self->now->() );
+  }
   return $self->_jwks;
 }
 
@@ -139,21 +173,36 @@ sub verify_token {
     defined $opt{audience} ? ( verify_aud => $opt{audience} ) : ()
   );
   my $claims = eval { decode_jwt( %check, kid_keys => $self->jwks ) };
-  return $claims if $claims;
-  my $first = $@;
-  # a key Keycloak rotated in since the keys were fetched
-  $claims = eval { decode_jwt( %check, kid_keys => $self->jwks( force_refresh => 1 ) ) };
-  return $claims if $claims;
-  WWW::Keycloak::Error::Validation->throw( message => 'token rejected: '.( $@ || $first ) =~ s/ at \S+ line \d+.*//sr );
+  my $error  = $@;
+  # A key Keycloak rotated in since the keys were fetched: fetch them again,
+  # but only for that reason and not more often than jwks_min_age allows.
+  if ( !$claims && $error =~ /kid_keys lookup failed/ && $self->now->() - ( $self->_jwks_fetched // 0 ) >= $self->jwks_min_age ) {
+    $claims = eval { decode_jwt( %check, kid_keys => $self->jwks( force_refresh => 1 ) ) };
+    $error  = $@;
+  }
+  $self->_reject( $error =~ s/ at \S+ line \d+.*//sr ) unless $claims;
+  if ( defined $opt{type} && ( $claims->{typ} // '' ) ne $opt{type} ) {
+    $self->_reject( 'typ is '.( $claims->{typ} // 'missing' ).', expected '.$opt{type} );
+  }
+  return $claims;
+}
+
+sub _reject {
+  my ( $self, $why ) = @_;
+  WWW::Keycloak::Error::Validation->throw( message => 'token rejected: '.$why );
 }
 
 =method verify_token
 
-    my $claims = $oidc->verify_token( $jwt, audience => 'my-api' );
+    my $claims = $oidc->verify_token( $jwt, audience => 'my-api', type => 'Bearer' );
 
-Checks signature, issuer and expiry, and the audience when one is given.
-Fetches the keys again once when the signing key is unknown. Returns the
-claims, or throws a validation error saying why the token was rejected.
+Checks signature, issuer and expiry, the audience when one is given, and the
+C<typ> claim when C<type> is given. Keycloak puts C<Bearer> into access tokens
+and C<ID> into ID tokens; an API that accepts access tokens should say
+C<< type => 'Bearer' >>, or an ID token issued to any client of the realm
+passes as well. When the signing key is unknown the keys are fetched again,
+at most once per L</jwks_min_age>. Returns the claims, or throws a validation
+error saying why the token was rejected.
 
 =cut
 

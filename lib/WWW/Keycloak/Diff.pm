@@ -22,7 +22,9 @@ kept free of I/O so that L<Net::Async::Keycloak> uses the very same code.
 
 Only the keys of the wanted state are looked at. Hashes are compared key by
 key, so a wanted C<attributes> hash with one entry checks that entry and leaves
-the others alone. Lists are compared as a whole. Booleans compare equal
+the others alone. Lists of plain values are compared as sets, because Keycloak
+returns lists such as C<redirectUris> sorted; lists holding structures are
+compared in order. Booleans compare equal
 whatever their spelling: C<\1>, a JSON true, C<"true"> and C<1> are the same
 value, and so are C<\0>, a JSON false, C<"false"> and C<0>. Everything else is
 compared as a string, so C<3600> and C<"3600"> are equal.
@@ -85,6 +87,10 @@ sub same {
   my ( $have_bool, $want_bool ) = ( $self->_bool($have), $self->_bool($want) );
   return $have_bool eq $want_bool ? 1 : 0 if defined $have_bool && defined $want_bool
     && ( $self->_is_bool($have) || $self->_is_bool($want) );
+  if ( ref $have eq 'ARRAY' && ref $want eq 'ARRAY' && !grep { ref } @$have, @$want ) {
+    # Keycloak returns lists like redirectUris sorted, whatever order they were sent in
+    return $JSON->encode( [ sort @$have ] ) eq $JSON->encode( [ sort @$want ] ) ? 1 : 0;
+  }
   return $JSON->encode($have) eq $JSON->encode($want) ? 1 : 0 if ref $have || ref $want;
   return "$have" eq "$want" ? 1 : 0;
 }

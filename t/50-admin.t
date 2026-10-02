@@ -119,4 +119,19 @@ subtest 'a refused token is renewed once' => sub {
   is( scalar @{ $fake->logins }, 2, 'after exactly one retry' );
 };
 
+subtest 'a failed login is not retried as a refused token' => sub {
+  my $bad = WWW::Keycloak->new( base_url => $fake->base, realm => 'main', client_id => 'svc', client_secret => 'wrong', ua => $fake );
+  @{ $fake->logins } = ();
+  ok( !eval { $bad->admin->get_realm; 1 }, 'a wrong client secret croaks' );
+  like( "$@", qr/admin login failed: 401/, 'as a failed login' );
+  is( scalar @{ $fake->logins }, 1, 'and the secret went to Keycloak once, not twice' );
+};
+
+subtest 'no Location header' => sub {
+  no warnings 'redefine';
+  local *FakeKeycloak::_admin = sub { $_[0]->_reply(201) };
+  ok( !eval { $admin->create_client( { clientId => 'x' } ); 1 }, 'croaks instead of returning nothing' );
+  like( "$@", qr/sent no Location header/, 'and says why' );
+};
+
 done_testing;

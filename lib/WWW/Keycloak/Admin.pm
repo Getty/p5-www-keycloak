@@ -8,6 +8,7 @@ use Scalar::Util qw( blessed );
 use Types::Standard qw( InstanceOf Str );
 use URI::Escape qw( uri_escape_utf8 );
 use WWW::Keycloak::Diff;
+use WWW::Keycloak::Error;
 use WWW::Keycloak::Error::Validation;
 use namespace::autoclean;
 
@@ -106,8 +107,9 @@ sub call {
   my $url = $path =~ m{\A/admin/} ? $self->base_url.$path : $self->realm_url.$path;
   WWW::Keycloak::Error::Validation->throw( message => 'the Admin API needs credentials: give username and password, client_id and client_secret, or token' )
     unless $self->has_auth;
-  my %arg = defined $body ? ( json => $body ) : ();
-  my $result = eval { $self->send_request( $method, $url, %arg, bearer => $self->auth->token ) };
+  my %arg    = defined $body ? ( json => $body ) : ();
+  my $bearer = $self->auth->token;   # outside the eval: a failed login is not a refused token
+  my $result = eval { $self->send_request( $method, $url, %arg, bearer => $bearer ) };
   if ( my $error = $@ ) {
     die $error unless blessed $error && $error->isa('WWW::Keycloak::Error::API') && $error->is_unauthorized && $self->auth->renewable;
     $self->auth->invalidate;
@@ -134,6 +136,7 @@ sub _create {
   my ( $self, $path, $body ) = @_;
   my $location = $self->call( POST => $path, $body )->{location} // '';
   my ( $id ) = $location =~ m{/([^/]+)\z};
+  WWW::Keycloak::Error->throw( message => 'POST '.$path.' created something but sent no Location header' ) unless defined $id;
   return $id;
 }
 sub _esc { uri_escape_utf8( $_[1] ) }
@@ -473,6 +476,11 @@ sub ensure_realm {
 sub ensure_client {
   my ( $self, %rep ) = @_;
   WWW::Keycloak::Error::Validation->throw( message => 'ensure_client needs a clientId' ) unless defined $rep{clientId};
+  for my $ignored (qw( defaultClientScopes optionalClientScopes protocolMappers )) {
+    WWW::Keycloak::Error::Validation->throw( message => 'ensure_client cannot set '.$ignored
+      .': Keycloak ignores it when a client is updated; use add_default_client_scope or ensure_protocol_mapper' )
+      if exists $rep{$ignored};
+  }
   return $self->_ensure(
     wanted => \%rep,
     find   => sub { $self->find_client( $rep{clientId} ) },
@@ -485,6 +493,11 @@ sub ensure_client {
 =method ensure_client
 
     my $r = $admin->ensure_client( clientId => 'my-cli', publicClient => \1, attributes => { ... } );
+
+C<defaultClientScopes>, C<optionalClientScopes> and C<protocolMappers> are
+refused: Keycloak takes them when a client is created but ignores them when
+it is updated, so they could not be kept in the wanted state. Use
+L</add_default_client_scope> and L</ensure_protocol_mapper>.
 
 =cut
 
@@ -541,11 +554,15 @@ sub ensure_user {
   my %compare = %rep;
   delete $compare{credentials};
   $compare{$_} = lc $compare{$_} for grep { defined $compare{$_} } qw( username email );
+  # Keycloak keeps every user attribute as a list of strings
+  $compare{attributes} = { map { $_ => ref $rep{attributes}{$_} eq 'ARRAY' ? $rep{attributes}{$_} : [ $rep{attributes}{$_} ] } keys %{ $rep{attributes} } }
+    if ref $rep{attributes} eq 'HASH';
   return $self->_ensure(
     wanted => \%compare,
     find   => sub { $self->find_user( $rep{username} ) },
     create => sub { $self->create_user( \%rep ) },
-    update => sub { $self->update_user( $_[0]{id}, $_[1] ) },
+    # the whole user: Keycloak's user profile drops fields a PUT with attributes does not name
+    update => sub { $self->update_user( $_[0]{id}, $self->diff_class->merge( $_[0], $_[1] ) ) },
     id     => sub { $_[0]->{id} }
   );
 }
@@ -558,7 +575,10 @@ sub ensure_user {
 C<credentials> are used when the user is created and ignored afterwards: a
 password is not reset on every run. Call L</set_password> for that.
 C<username> and C<email> are compared in lower case, the way Keycloak keeps
-them.
+them, and attribute values as lists of strings (a single value may be given
+as a string). Attributes the realm's user profile does not declare are dropped
+by Keycloak unless the profile allows unmanaged attributes; such an attribute
+never arrives and is reported as C<updated> on every run.
 
 =cut
 

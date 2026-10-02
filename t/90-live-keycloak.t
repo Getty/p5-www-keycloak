@@ -92,6 +92,14 @@ subtest 'a realm from nothing, twice' => sub {
   } );
   is_deeply( [ sort map { $_->{type} } @{ $admin->list_credentials( $admin->find_user('live-user')->{id} ) } ], [qw( otp password )], 'password and OTP set at creation' );
 
+  $admin->ensure_user( username => 'live-user', attributes => { dept => 'x' } );
+  my $user = $admin->find_user('live-user');
+  is_deeply( [ @$user{qw( email firstName lastName )} ], [ 'live@example.org', 'Live', 'User' ], 'a write with attributes keeps the profile fields' );
+
+  twice( 'unsorted redirect URIs' => sub {
+    $admin->ensure_client( clientId => 'live-web', redirectUris => [ 'https://b.example/*', 'https://a.example/*', 'https://c.example/*' ] );
+  } );
+
   for my $step ( [ 'direct grant', 'direct-grant-validate-password', 'pwd' ], [ 'direct grant', 'direct-grant-validate-otp', 'otp' ] ) {
     my %arg = ( flow => $step->[0], authenticator => $step->[1], config => { 'default.reference.value' => $step->[2], 'default.reference.maxAge' => 3600 } );
     is( $admin->ensure_execution_config(%arg)->{changed}, 'created', $step->[1].': created' );

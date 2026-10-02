@@ -5,6 +5,7 @@ package WWW::Keycloak;
 use Moo;
 use LWP::UserAgent;
 use Types::Standard qw( InstanceOf Str );
+use URI::Escape qw( uri_escape_utf8 );
 use WWW::Keycloak::Admin;
 use WWW::Keycloak::Auth;
 use WWW::Keycloak::Error;
@@ -122,12 +123,13 @@ has ua => (
 );
 
 sub _build_ua {
-  return LWP::UserAgent->new( timeout => 30, agent => 'WWW-Keycloak/'.$VERSION, ssl_opts => { verify_hostname => 1 } );
+  # no redirects: nothing here needs one, and none may carry the admin token elsewhere
+  return LWP::UserAgent->new( timeout => 30, agent => 'WWW-Keycloak/'.$VERSION, max_redirect => 0, ssl_opts => { verify_hostname => 1 } );
 }
 
 =attr ua
 
-The L<LWP::UserAgent> every part shares.
+The L<LWP::UserAgent> every part shares. The default follows no redirects.
 
 =cut
 
@@ -142,7 +144,7 @@ sub _build_auth {
   return unless $self->has_username || $self->has_client_id;
   return WWW::Keycloak::Auth->new(
     ua             => $self->ua,
-    token_endpoint => $self->base_url.'/realms/'.$self->auth_realm.'/protocol/openid-connect/token',
+    token_endpoint => $self->base_url.'/realms/'.uri_escape_utf8( $self->auth_realm ).'/protocol/openid-connect/token',
     map { $_ => $self->$_ } grep { defined $self->$_ } qw( username password client_id client_secret )
   );
 }
@@ -205,7 +207,7 @@ sub BUILD {
   return;
 }
 
-sub issuer { $_[0]->base_url.'/realms/'.$_[0]->realm }
+sub issuer { $_[0]->base_url.'/realms/'.uri_escape_utf8( $_[0]->realm ) }
 
 =method issuer
 

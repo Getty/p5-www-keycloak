@@ -201,8 +201,10 @@ Wie `WWW::Zitadel::OIDC`, ergänzt um das, was Keycloak-typisch gebraucht wird:
 | `device_authorization(client_id =>, scope =>)`, `device_token(device_code =>, client_id =>)` | ein Schritt des Device-Flows; die Poll-Schleife ist Sache des Aufrufers oder von `Airlock::Client` |
 | `logout(refresh_token =>, client_id => ...)` | Sitzung beenden |
 
-`verify_token` akzeptiert standardmäßig nur `RS256`, `RS384`, `RS512`, `ES256`, `ES384`,
-`ES512` und nie `none`.
+`verify_token` akzeptiert standardmäßig nur `RS*`, `PS*` und `ES*` und nie `none` oder HMAC.
+Mit `type => 'Bearer'` prüft es zusätzlich `typ`, damit ein ID-Token nicht als Access-Token
+durchgeht. Bei unbekanntem Schlüssel lädt es die JWKS neu, aber nur aus diesem Grund und
+höchstens einmal pro `jwks_min_age` (60 Sekunden).
 
 ## 7. Fehler
 
@@ -328,3 +330,28 @@ Abhängigkeiten: `Moo`, `LWP::UserAgent`, `HTTP::Request`, `JSON::MaybeXS`, `Cry
 4. **Gemeinsame `Diff`-Funktion oder volle Doppelung im Zwilling?** Abschnitt 9 schlägt
    die gemeinsame Funktion vor; der Preis ist eine Abhängigkeit von `Net-Async-Keycloak`
    auf `WWW-Keycloak`, die es zwischen den Zitadel-Zwillingen nicht gibt.
+
+## 12. Nach dem Bau geklärt (2026-10-03)
+
+Ein unabhängiger Review mit Proben gegen das echte Keycloak 26.8.0 hat Punkte gefunden, die
+Unit- und Live-Tests nicht abgedeckt hatten. Sie sind behoben und durch Tests gegen das
+nachgebaute wie das echte Keycloak festgehalten; wo sie dem Text oben widersprechen, gelten sie.
+
+- **`ensure_user` schickt den ganzen Nutzer.** Ein `PUT` mit `attributes` lässt Keycloaks
+  User-Profile die nicht genannten Felder (`email`, `firstName`, `lastName`) löschen.
+  Attributwerte werden als Listen verglichen; ein einzelner Wert darf als String kommen.
+  Attribute, die das User-Profile nicht kennt, verwirft Keycloak, solange es nicht
+  unverwaltete Attribute erlaubt; sie melden dann bei jedem Lauf `updated`.
+- **Listen aus einfachen Werten sind Mengen.** Keycloak gibt `redirectUris` und `webOrigins`
+  sortiert zurück; ein Vergleich in Reihenfolge hätte nie konvergiert.
+- **`ensure_client` verweigert `defaultClientScopes`, `optionalClientScopes` und
+  `protocolMappers`.** Keycloak übernimmt sie beim Anlegen, ignoriert sie aber beim
+  Aktualisieren. Dafür gibt es `add_default_client_scope` und `ensure_protocol_mapper`.
+- **`ensure_execution_config` ersetzt statt zusammenzuführen** und meldet bei jedem Lauf
+  `updated`: Keycloak liefert diese Werte beim Lesen als `**********`. Abschnitt 5.2
+  („erst vergleichen, dann schreiben“) gilt für diese eine Methode nicht.
+- **Ein fehlgeschlagener Admin-Login wird nicht als abgelehntes Token wiederholt**; das
+  Secret geht genau einmal an Keycloak. Ein falsches Passwort beantwortet Keycloak mit 400
+  `invalid_grant`, nicht mit 401.
+- **Die Standard-`ua` folgt keinen Redirects,** damit das Admin-Token nirgendwohin
+  weitergereicht wird. Der Realm wird in allen Adressen URI-kodiert.

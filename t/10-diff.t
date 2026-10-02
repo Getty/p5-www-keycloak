@@ -27,7 +27,10 @@ subtest 'same' => sub {
   ok( !$diff->same( 'true', 'yes' ), 'a string that only looks boolean' );
   ok( !$diff->same( 1, 2 ), 'numbers stay numbers' );
   ok( $diff->same( [qw( a b )], [qw( a b )] ), 'equal lists' );
-  ok( !$diff->same( [qw( a b )], [qw( b a )] ), 'order matters in lists' );
+  ok( $diff->same( [qw( a b )], [qw( b a )] ), 'lists of plain values are sets: Keycloak sorts them' );
+  ok( !$diff->same( [qw( a b )], [qw( a b c )] ), 'but not the same set' );
+  ok( !$diff->same( [qw( a a b )], [qw( a b b )] ), 'counts matter' );
+  ok( !$diff->same( [ { a => 1 }, { b => 1 } ], [ { b => 1 }, { a => 1 } ] ), 'lists of structures keep their order' );
   ok( $diff->same( [ { a => 1, b => 2 } ], [ { b => 2, a => 1 } ] ), 'key order inside does not' );
 };
 

@@ -48,11 +48,35 @@ subtest 'verify_token' => sub {
 };
 
 subtest 'key rotation' => sub {
-  $oidc->jwks;
+  my $clock   = time;
+  my $rotated = WWW::Keycloak::OIDC->new( issuer => $issuer, ua => $fake, now => sub { $clock } );
+  my $fetches = sub { scalar grep { $_->uri =~ /certs/ } @{ $fake->requests } };
+  $rotated->jwks;
+  my $start = $fetches->();
+
+  for my $junk ( $fake->sign( claims( iss => 'https://evil' ) ), $fake->sign( claims( exp => time - 1 ) ), 'abc.def' ) {
+    ok( !eval { $rotated->verify_token($junk); 1 }, 'a bad token is rejected' );
+  }
+  is( $fetches->(), $start, 'without fetching the keys again' );
+
   $fake->rotate_key;
-  my $before = grep { $_->uri =~ /certs/ } @{ $fake->requests };
-  ok( $oidc->verify_token( $fake->sign( claims() ) ), 'a token signed with a new key verifies' );
-  is( scalar( grep { $_->uri =~ /certs/ } @{ $fake->requests } ), $before + 1, 'after fetching the keys once more' );
+  ok( !eval { $rotated->verify_token( $fake->sign( claims() ) ); 1 }, 'a new key right after the last fetch is not looked up yet' );
+  is( $fetches->(), $start, 'jwks_min_age holds the fetch back' );
+  $clock += 60;
+  ok( $rotated->verify_token( $fake->sign( claims() ) ), 'a minute later the token with the new key verifies' );
+  is( $fetches->(), $start + 1, 'after one fetch' );
+  ok( !eval { $rotated->verify_token( $fake->sign( claims(), kid => 'unknown' ) ); 1 }, 'an unknown kid right after' );
+  is( $fetches->(), $start + 1, 'does not fetch again' );
+};
+
+subtest 'typ' => sub {
+  # a client of its own: the shared one still holds the keys from before the rotation
+  my $oidc = WWW::Keycloak::OIDC->new( issuer => $issuer, ua => $fake );
+  ok( $oidc->verify_token( $fake->sign( claims( typ => 'Bearer' ) ), type => 'Bearer' ), 'an access token where one is expected' );
+  ok( !eval { $oidc->verify_token( $fake->sign( claims( typ => 'ID' ) ), type => 'Bearer' ); 1 }, 'an ID token where an access token is expected' );
+  like( "$@", qr/typ is ID, expected Bearer/, 'says why' );
+  ok( !eval { $oidc->verify_token( $fake->sign( claims() ), type => 'Bearer' ); 1 }, 'no typ at all' );
+  ok( $oidc->verify_token( $fake->sign( claims( typ => 'ID' ) ) ), 'without type nothing is checked' );
 };
 
 subtest 'token endpoint' => sub {

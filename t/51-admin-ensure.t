@@ -97,4 +97,23 @@ subtest 'ensure_execution_config' => sub {
   ok( !eval { $admin->ensure_execution_config( flow => 'browser', authenticator => 'auth-otp-form' ); 1 }, 'without config' );
 };
 
+subtest 'what the review found against the real Keycloak' => sub {
+  my $user = $admin->ensure_user( username => 'bob', email => 'bob@example.org', firstName => 'Bob', lastName => 'B', enabled => \1 );
+  is( $admin->ensure_user( username => 'bob', attributes => { dept => 'x' } )->{changed}, 'updated', 'an attribute added' );
+  my $stored = $fake->realm('main')->{users}{ $user->{id} };
+  is_deeply( [ @$stored{qw( email firstName lastName )} ], [ 'bob@example.org', 'Bob', 'B' ], 'the profile fields survive a PUT with attributes' );
+  is_deeply( $stored->{attributes}, { dept => ['x'] }, 'stored as a list' );
+  is( $admin->ensure_user( username => 'bob', attributes => { dept => 'x' } )->{changed}, '', 'a single value given as a string converges' );
+  is( $admin->ensure_user( username => 'bob', attributes => { dept => ['x'] } )->{changed}, '', 'and as a list' );
+
+  my %uris = ( clientId => 'web', redirectUris => [ 'https://b/*', 'https://a/*', 'https://c/*' ], webOrigins => [ 'https://b', 'https://a' ] );
+  is( $admin->ensure_client(%uris)->{changed}, 'created', 'a client with unsorted URI lists' );
+  is( $admin->ensure_client(%uris)->{changed}, '', 'converges although Keycloak sorts them' );
+
+  for my $ignored (qw( defaultClientScopes optionalClientScopes protocolMappers )) {
+    ok( !eval { $admin->ensure_client( clientId => 'web', $ignored => [] ); 1 }, $ignored.' is refused' );
+    like( "$@", qr/Keycloak ignores it when a client is updated/, 'with the reason' );
+  }
+};
+
 done_testing;

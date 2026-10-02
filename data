@@ -1,0 +1,21 @@
+---
+claimed_at: 2026-10-02T23:34:38Z
+claimed_by: hub
+class: standard
+completed: 2026-10-02T23:34:38Z
+created: 2026-10-02T19:24:53Z
+id: 1
+priority: high
+started: 2026-10-02T21:14:24Z
+status: done
+tags:
+- design
+title: 'Design: API surface of WWW::Keycloak (facade, OIDC, Admin, Error)'
+updated: 2026-10-02T23:34:38Z
+---
+
+Fix the public API before code: facade attributes (base_url, realm, credentials, ua), OIDC methods, Admin methods needed for an automatic setup (realm, client, user, credentials), error hierarchy. Model: ~/dev/p5-www-zitadel. State the targeted Keycloak version. Needs the maintainer: the automatic Keycloak setup is still to be discussed.
+
+ Draft: docs/superpowers/specs/2026-10-02-www-keycloak-design.md (2bc7418). Waits for the maintainer's review and the four open decisions in section 11.
+
+ Done: phase 1 in 02e89b1..2023833, review fixes in 3aadff4. Live suite passes against Keycloak 26.8.0.

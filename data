@@ -1,0 +1,19 @@
+---
+claimed_at: 2026-10-02T23:34:38Z
+claimed_by: hub
+class: standard
+completed: 2026-10-02T23:34:38Z
+created: 2026-10-02T19:24:54Z
+depends_on:
+- 1
+id: 2
+priority: high
+started: 2026-10-02T23:34:38Z
+status: done
+tags:
+- core
+title: Facade and error hierarchy
+updated: 2026-10-02T23:34:38Z
+---
+
+WWW::Keycloak with shared LWP::UserAgent, lazy oidc/admin; WWW::Keycloak::Error with ::Validation, ::Network, ::API, one package per file. Mocked-HTTP tests.

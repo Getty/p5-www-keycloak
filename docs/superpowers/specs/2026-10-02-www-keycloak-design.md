@@ -1,7 +1,7 @@
 # WWW::Keycloak – Design
 
 Datum: 2026-10-02
-Status: Entwurf, wartet auf Review. Offene Entscheidungen in Abschnitt 11.
+Status: freigegeben am 2026-10-03; die Entscheidungen aus Abschnitt 11 sind getroffen.
 Distribution: `WWW-Keycloak` (Repo `p5-www-keycloak`), CPAN-fähig, `[@Author::GETTY]`
 Zwilling: `Net-Async-Keycloak` (Repo `p5-net-async-keycloak`), folgt diesem Design mit `_f`-Methoden.
 
@@ -51,7 +51,7 @@ $kc->admin->ensure_execution_config(
 WWW::Keycloak                   Fassade: base_url, realm, Zugangsdaten, ua
   ├─ ->oidc    WWW::Keycloak::OIDC     Discovery, JWKS, Token prüfen, Token holen
   ├─ ->admin   WWW::Keycloak::Admin    Admin-REST-API des Realms
-  └─ ->realm('x')                      dieselbe Fassade für einen anderen Realm
+  └─ ->for_realm('x')                  dieselbe Fassade für einen anderen Realm
 
 WWW::Keycloak::Auth             Admin-Token holen, erneuern, bei 401 einmal neu
 WWW::Keycloak::Error            ::Validation, ::Network, ::API (ein Paket pro Datei)
@@ -65,7 +65,7 @@ Zwei Dinge sind bei Keycloak anders als bei Zitadel und prägen den Aufbau:
 
 1. **Der Realm ist Teil der Adresse.** OIDC liegt unter `<base_url>/realms/<realm>`, die
    Admin-API unter `<base_url>/admin/realms/<realm>`. Der Realm ist deshalb ein
-   Pflichtattribut der Fassade, kein Parameter jeder Methode. `->realm('anderer')` liefert
+   Pflichtattribut der Fassade, kein Parameter jeder Methode. `->for_realm('anderer')` liefert
    eine zweite Fassade mit derselben `ua` und derselben Anmeldung.
 2. **Admin-Tokens sind kurzlebig.** Es gibt kein Personal Access Token. Das Admin-Token
    kommt aus einem OIDC-Login und läuft nach kurzer Zeit ab (ein neuer Realm hat
@@ -92,7 +92,8 @@ my $kc = WWW::Keycloak->new(
 $kc->issuer;        # https://id.example.org/realms/main
 $kc->oidc;          # WWW::Keycloak::OIDC
 $kc->admin;         # WWW::Keycloak::Admin
-$kc->realm('dev');  # Fassade für einen anderen Realm, gleiche Anmeldung
+$kc->realm;             # 'main'
+$kc->for_realm('dev');  # Fassade für einen anderen Realm, gleiche Anmeldung
 ```
 
 `base_url` und `realm` leer oder fehlend: `WWW::Keycloak::Error::Validation`. Ohne
@@ -306,7 +307,7 @@ Der Zwilling zieht nach jeder Phase nach.
 Abhängigkeiten: `Moo`, `LWP::UserAgent`, `HTTP::Request`, `JSON::MaybeXS`, `Crypt::JWT`,
 `URI`, `Types::Standard`, `namespace::autoclean`. HTTPS über `LWP::Protocol::https`.
 
-## 11. Offene Entscheidungen
+## 11. Entscheidungen (getroffen 2026-10-03, jeweils wie vorgeschlagen)
 
 1. **Wie sieht das „automatische Setup“ aus?** Zwei Wege, die sich nicht ausschließen:
    - *Im Code:* Ein Perl-Skript ruft `ensure_*` der Reihe nach. Das ist mit Phase 1 fertig.

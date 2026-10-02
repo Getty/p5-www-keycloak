@@ -1,0 +1,19 @@
+---
+claimed_at: 2026-10-02T23:34:40Z
+claimed_by: hub
+class: standard
+completed: 2026-10-02T23:34:40Z
+created: 2026-10-02T19:24:54Z
+depends_on:
+- 2
+id: 4
+priority: high
+started: 2026-10-02T23:34:40Z
+status: done
+tags:
+- admin
+title: 'WWW::Keycloak::Admin: realms, clients, users, credentials'
+updated: 2026-10-02T23:34:40Z
+---
+
+Admin REST API as direct methods. Enough for an automatic setup of realm, client with device flow, and a user with TOTP. Mocked-HTTP tests.

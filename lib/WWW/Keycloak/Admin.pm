@@ -441,4 +441,160 @@ Works on the built-in flows too.
 
 =cut
 
+####  ensure
+
+sub _ensure {
+  my ( $self, %arg ) = @_;
+  my $current = $arg{find}->();
+  return { id => $arg{create}->(), changed => 'created' } unless $current;
+  my $changes = $self->diff_class->changes( $current, $arg{wanted} );
+  return { id => $arg{id}->($current), changed => '' } unless %$changes;
+  $arg{update}->( $current, $changes );
+  return { id => $arg{id}->($current), changed => 'updated' };
+}
+
+sub ensure_realm {
+  my ( $self, %rep ) = @_;
+  return $self->_ensure(
+    wanted => \%rep,
+    find   => sub { my $realm = eval { $self->get_realm }; $self->_missing($@) unless $realm; $realm },
+    create => sub { $self->create_realm( \%rep ) },
+    update => sub { $self->update_realm( $_[1] ) },
+    id     => sub { $_[0]->{realm} }
+  );
+}
+
+=method ensure_realm
+
+    $admin->ensure_realm( enabled => \1, accessTokenLifespan => 600 );
+
+=cut
+
+sub ensure_client {
+  my ( $self, %rep ) = @_;
+  WWW::Keycloak::Error::Validation->throw( message => 'ensure_client needs a clientId' ) unless defined $rep{clientId};
+  return $self->_ensure(
+    wanted => \%rep,
+    find   => sub { $self->find_client( $rep{clientId} ) },
+    create => sub { $self->create_client( \%rep ) },
+    update => sub { $self->update_client( $_[0]{id}, { %{ $_[0] }, %{ $_[1] } } ) },
+    id     => sub { $_[0]->{id} }
+  );
+}
+
+=method ensure_client
+
+    my $r = $admin->ensure_client( clientId => 'my-cli', publicClient => \1, attributes => { ... } );
+
+=cut
+
+sub ensure_client_scope {
+  my ( $self, %rep ) = @_;
+  WWW::Keycloak::Error::Validation->throw( message => 'ensure_client_scope needs a name' ) unless defined $rep{name};
+  return $self->_ensure(
+    wanted => \%rep,
+    find   => sub { $self->find_client_scope( $rep{name} ) },
+    create => sub { $self->create_client_scope( { protocol => 'openid-connect', %rep } ) },
+    update => sub { $self->update_client_scope( $_[0]{id}, { %{ $_[0] }, %{ $_[1] } } ) },
+    id     => sub { $_[0]->{id} }
+  );
+}
+
+=method ensure_client_scope
+
+    my $r = $admin->ensure_client_scope( name => 'amr', attributes => { 'include.in.token.scope' => 'false' } );
+
+The protocol defaults to C<openid-connect>.
+
+=cut
+
+sub ensure_protocol_mapper {
+  my ( $self, $kind, $owner_key, %rep ) = @_;
+  WWW::Keycloak::Error::Validation->throw( message => 'ensure_protocol_mapper needs a name' ) unless defined $rep{name};
+  my $owner = $kind && $kind eq 'client' ? $self->find_client($owner_key)
+    : $kind && $kind eq 'client_scope' ? $self->find_client_scope($owner_key)
+    : $self->_mapper_path($kind);
+  WWW::Keycloak::Error::Validation->throw( message => 'ensure_protocol_mapper: no '.$kind.' '.$owner_key ) unless $owner;
+  return $self->_ensure(
+    wanted => \%rep,
+    find   => sub { ( grep { $_->{name} eq $rep{name} } @{ $self->list_protocol_mappers( $kind, $owner->{id} ) } )[0] },
+    create => sub { $self->create_protocol_mapper( $kind, $owner->{id}, { protocol => 'openid-connect', %rep } ) },
+    update => sub { $self->update_protocol_mapper( $kind, $owner->{id}, $_[0]{id}, { %{ $_[0] }, %{ $_[1] } } ) },
+    id     => sub { $_[0]->{id} }
+  );
+}
+
+=method ensure_protocol_mapper
+
+    my $r = $admin->ensure_protocol_mapper( client => 'my-cli', name => 'amr', protocolMapper => 'oidc-amr-mapper', config => { 'id.token.claim' => 'true' } );
+    my $r = $admin->ensure_protocol_mapper( client_scope => 'amr', name => 'amr', ... );
+
+The owner is named by C<clientId> or by scope name. The protocol defaults to
+C<openid-connect>.
+
+=cut
+
+sub ensure_user {
+  my ( $self, %rep ) = @_;
+  WWW::Keycloak::Error::Validation->throw( message => 'ensure_user needs a username' ) unless defined $rep{username};
+  # Keycloak keeps user names and e-mail addresses in lower case
+  my %compare = %rep;
+  delete $compare{credentials};
+  $compare{$_} = lc $compare{$_} for grep { defined $compare{$_} } qw( username email );
+  return $self->_ensure(
+    wanted => \%compare,
+    find   => sub { $self->find_user( $rep{username} ) },
+    create => sub { $self->create_user( \%rep ) },
+    update => sub { $self->update_user( $_[0]{id}, $_[1] ) },
+    id     => sub { $_[0]->{id} }
+  );
+}
+
+=method ensure_user
+
+    my $r = $admin->ensure_user( username => 'alice', enabled => \1, email => 'alice@example.org',
+      credentials => [ { type => 'password', value => $pw, temporary => \0 } ] );
+
+C<credentials> are used when the user is created and ignored afterwards: a
+password is not reset on every run. Call L</set_password> for that.
+C<username> and C<email> are compared in lower case, the way Keycloak keeps
+them.
+
+=cut
+
+sub ensure_execution_config {
+  my ( $self, %arg ) = @_;
+  for (qw( flow authenticator config )) {
+    WWW::Keycloak::Error::Validation->throw( message => 'ensure_execution_config needs '.$_ ) unless defined $arg{$_};
+  }
+  my ( $execution ) = grep { ( $_->{providerId} // '' ) eq $arg{authenticator} } @{ $self->list_executions( $arg{flow} ) };
+  WWW::Keycloak::Error::Validation->throw( message => 'flow "'.$arg{flow}.'" has no step '.$arg{authenticator} ) unless $execution;
+  my $alias = $arg{alias} // $arg{flow}.' '.$arg{authenticator};
+  return $self->_ensure(
+    wanted => { config => $arg{config} },
+    find   => sub { $execution->{authenticationConfig} ? $self->get_execution_config( $execution->{authenticationConfig} ) : undef },
+    create => sub { $self->create_execution_config( $execution->{id}, { alias => $alias, config => $arg{config} } ) },
+    update => sub { $self->update_execution_config( $_[0]{id}, { alias => $_[0]{alias}, config => $arg{config} } ) },
+    id     => sub { $_[0]->{id} }
+  );
+}
+
+=method ensure_execution_config
+
+    my $r = $admin->ensure_execution_config(
+      flow          => 'browser',
+      authenticator => 'auth-otp-form',
+      config        => { 'default.reference.value' => 'otp', 'default.reference.maxAge' => 3600 },
+    );
+
+Settings of one step of an authentication flow, found by its authenticator.
+C<alias> names a new configuration; default C<< "<flow> <authenticator>" >>.
+
+Give the complete configuration. Keycloak hides the values of these settings
+when they are read (they come back as C<**********>), so they can neither be
+compared nor merged: an existing configuration is replaced by C<config> and
+reported as C<updated> on every run.
+
+=cut
+
 1;

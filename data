@@ -1,0 +1,19 @@
+---
+claimed_at: 2026-10-02T23:34:40Z
+claimed_by: hub
+class: standard
+completed: 2026-10-02T23:34:40Z
+created: 2026-10-02T19:24:55Z
+depends_on:
+- 4
+id: 5
+priority: medium
+started: 2026-10-02T23:34:40Z
+status: done
+tags:
+- live
+title: Live suite against a throwaway Keycloak
+updated: 2026-10-02T23:34:40Z
+---
+
+Opt-in via KEYCLOAK_LIVE_TEST=1 KEYCLOAK_URL; creates and removes its own realm. Document how to start a local Keycloak container for it.

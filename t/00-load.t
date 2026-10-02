@@ -5,6 +5,7 @@ use Test::More;
 
 for (qw(
   WWW::Keycloak
+  WWW::Keycloak::Diff
 )) {
   use_ok($_);
 }

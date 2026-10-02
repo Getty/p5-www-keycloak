@@ -1,4 +1,4 @@
 Revision history for WWW-Keycloak
 
 {{$NEXT}}
-    - Initial skeleton
+    - WWW::Keycloak::Diff: compare a representation with the wanted state, without I/O

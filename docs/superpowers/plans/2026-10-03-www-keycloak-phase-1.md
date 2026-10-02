@@ -10,6 +10,13 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-02-www-keycloak-design.md` (freigegeben 2026-10-03).
 
+## Ausführung
+
+Ausgeführt am 2026-10-03, ein Commit pro Aufgabe (`02e89b1` bis `2023833`). Danach hat ein
+unabhängiger Review mit Proben gegen das echte Keycloak Fehler gefunden, die in einem eigenen
+Commit behoben sind (Spec-Abschnitt 12); der Code im Repo weicht dort von den Listings unten
+ab. Maßgeblich ist das Repo.
+
 ## Stand des Codes in diesem Plan
 
 Der gesamte Code ist am 2026-10-03 als Prototyp gelaufen: `prove -lr t` mit 53 Tests grün, `dzil test` im Endzustand grün, und `t/90-live-keycloak.t` grün gegen Keycloak 26.8.0 (Namespace `airlock-test` auf `cihq`). Der Live-Lauf hat zwei Eigenheiten aufgedeckt, die im Code berücksichtigt sind und die niemand „vereinfachen“ darf:

@@ -1,0 +1,19 @@
+---
+claimed_at: 2026-10-02T23:34:39Z
+claimed_by: hub
+class: standard
+completed: 2026-10-02T23:34:39Z
+created: 2026-10-02T19:24:54Z
+depends_on:
+- 2
+id: 3
+priority: high
+started: 2026-10-02T23:34:39Z
+status: done
+tags:
+- oidc
+title: 'WWW::Keycloak::OIDC: discovery, JWKS, verify, token and device endpoints'
+updated: 2026-10-02T23:34:39Z
+---
+
+Discovery, JWKS, token verification, userinfo, introspection, token endpoint helpers, device authorization endpoint. Mocked-HTTP tests.

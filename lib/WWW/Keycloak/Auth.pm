@@ -185,7 +185,7 @@ sub _grant {
   my $data = eval { $self->send_request( POST => $self->token_endpoint, form => $form )->{data} };
   if ( my $error = $@ ) {
     die $error unless ref $error && $error->isa('WWW::Keycloak::Error::API');
-    WWW::Keycloak::Error::API->throw(
+    $self->api_error_class->throw(
       message     => 'admin login failed: '.$error->http_status.( defined $error->api_message ? ' - '.$error->api_message : '' ),
       http_status => $error->http_status,
       api_message => $error->api_message,

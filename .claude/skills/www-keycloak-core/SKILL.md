@@ -6,15 +6,15 @@ description: Use when working on WWW::Keycloak — the synchronous Perl client f
 # WWW::Keycloak core
 
 Synchronous Perl client for Keycloak, modelled on `WWW::Zitadel` (`~/dev/p5-www-zitadel`).
-**Skeleton state: nothing is implemented yet.** The layout below is the plan; the karr
-board carries the work.
+Phase 1 is built (2026-10-03). Section 12 of the design lists what the real Keycloak
+forced on the implementation; read it before changing any `ensure_*` method.
 
 **The design is `docs/superpowers/specs/2026-10-02-www-keycloak-design.md`** (draft, awaiting
 review). It carries the API surface, the `ensure_*` rules and a table of Admin REST calls
 observed against Keycloak 26.8.0. Read the section you work in; the spec wins over this
 skill.
 
-## Planned module map
+## Module map
 
 - `WWW::Keycloak` — facade: `base_url`, `realm`, optional credentials; lazy `oidc` and
   `admin` sub-clients sharing one `LWP::UserAgent` (injectable via `ua`).

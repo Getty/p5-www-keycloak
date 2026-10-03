@@ -2,7 +2,7 @@
 
 WWW::Keycloak — synchronous Perl client for Keycloak: OIDC (discovery, JWKS, token verification, token and device endpoints) plus the Admin REST API (realms, clients, users), modelled on `WWW::Zitadel`. Moo-based; released to CPAN via Dist::Zilla `[@Author::GETTY]`.
 
-Async twin: `p5-net-async-keycloak` (`Net::Async::Keycloak::*`), same API surface with `_f` suffixes returning Futures — keep them in sync. Skeleton state: nothing is implemented yet, the work is on the karr board.
+Async twin: `p5-net-async-keycloak` (`Net::Async::Keycloak::*`), same API surface with `_f` suffixes returning Futures — keep them in sync. Phase 1 is built; design and plan are under `docs/superpowers/`.
 
 ## Delegation
 

@@ -63,8 +63,10 @@ the body as JSON or as a form.
 
 sub read_response {
   my ( $self, $response, $method, $url, %arg ) = @_;
-  my $content = $response->decoded_content // '';
-  my $data    = length $content ? eval { $self->json_codec->decode( $response->content ) } : undef;
+  # decoded_content undoes a Content-Encoding, the raw content does not; with
+  # charset => 'none' the bytes stay bytes, which the JSON codec decodes itself
+  my $content = $response->decoded_content( charset => 'none' ) // '';
+  my $data    = length $content ? eval { $self->json_codec->decode($content) } : undef;
   return { status => $response->code, data => $data, location => scalar $response->header('Location') }
     if $response->is_success;
   my ( $message, $oauth );

@@ -49,4 +49,21 @@ subtest 'no answer at all' => sub {
   like( "$error", qr{GET http://127.0.0.1:9/realms/x/.well-known/openid-configuration: 500}, 'names the request' );
 };
 
+subtest 'a compressed answer is read like a plain one' => sub {
+  require HTTP::Response;
+  require IO::Compress::Gzip;
+  # one character as a JSON escape, one as the two bytes of its UTF-8 form
+  my $json = '{"clientId":"my-cli","name":"Caf\u00e9 '."\xc3\xa9".'"}';
+  IO::Compress::Gzip::gzip( \$json => \my $gzipped ) or die 'gzip failed';
+  my %answer = (
+    plain => HTTP::Response->new( 200, 'OK', [ 'Content-Type' => 'application/json' ], $json ),
+    gzip  => HTTP::Response->new( 200, 'OK', [ 'Content-Type' => 'application/json', 'Content-Encoding' => 'gzip' ], $gzipped )
+  );
+  for my $kind ( sort keys %answer ) {
+    my $read = $kc->oidc->read_response( $answer{$kind}, GET => 'http://kc.test/x' );
+    is( $read->{data}{clientId}, 'my-cli', $kind.': the body is decoded' );
+    is( $read->{data}{name}, "Caf\x{e9} \x{e9}", $kind.': and its characters once' );
+  }
+};
+
 done_testing;

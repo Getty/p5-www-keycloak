@@ -8,3 +8,4 @@ Revision history for WWW-Keycloak
     - Live tests against a real Keycloak behind KEYCLOAK_LIVE_TEST
     - verify_token: optional typ check, keys fetched again only for an unknown key and at most once a minute
     - Role::HTTP: build_request and read_response split from send_request, error classes overridable, for Net::Async::Keycloak
+    - Role::HTTP: an answer with a Content-Encoding is decoded; it used to be read as no data at all

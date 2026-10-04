@@ -1,0 +1,13 @@
+---
+class: standard
+created: 2026-10-04T15:16:47Z
+id: 6
+priority: low
+status: backlog
+tags:
+- review
+title: find_*(undef) fetches the whole table; Diff::_bool ends in a bare return
+updated: 2026-10-04T15:16:47Z
+---
+
+Two small findings from the WWW::Authentik review that also hold for the code here, neither with an observed wrong result. (1) find_client(undef) and find_user(undef) list everything and compare every row with undef, with warnings; WWW::Authentik throws a Validation error instead. (2) WWW::Keycloak::Diff::_bool ends in a bare return, and same() takes two of them in one list, so an empty return shifts the second value into the first slot; no case was found where the result is wrong, WWW::Authentik returns undef explicitly.

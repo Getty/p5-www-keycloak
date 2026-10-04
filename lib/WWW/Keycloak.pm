@@ -15,7 +15,7 @@ use WWW::Keycloak::Error::Validation;
 use WWW::Keycloak::OIDC;
 use namespace::autoclean;
 
-our $VERSION = '0.001';
+our $VERSION = '0.002';
 
 =synopsis
 

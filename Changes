@@ -1,5 +1,7 @@
 Revision history for WWW-Keycloak
 
+{{$NEXT}}
+
 0.001     2026-10-04 18:01:17Z
     - WWW::Keycloak::Diff: compare a representation with the wanted state, without I/O
     - WWW::Keycloak::Auth: admin token by password, service account or fixed token, renewed before expiry

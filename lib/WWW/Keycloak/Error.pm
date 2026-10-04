@@ -7,7 +7,7 @@ use Moo;
 # No namespace::autoclean here: it would remove the overload stub.
 use overload '""' => sub { $_[0]->message }, fallback => 1;
 
-our $VERSION = '0.001';
+our $VERSION = '0.002';
 
 =synopsis
 

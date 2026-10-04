@@ -5,7 +5,7 @@ package WWW::Keycloak::Error::API;
 use Moo;
 extends 'WWW::Keycloak::Error';
 
-our $VERSION = '0.001';
+our $VERSION = '0.002';
 
 =description
 

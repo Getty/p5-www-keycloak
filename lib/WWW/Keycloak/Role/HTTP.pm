@@ -9,7 +9,7 @@ use WWW::Keycloak::Error::API;
 use WWW::Keycloak::Error::Network;
 use Moo::Role;
 
-our $VERSION = '0.001';
+our $VERSION = '0.002';
 
 =description
 

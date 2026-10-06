@@ -1,0 +1,27 @@
+---
+class: standard
+created: 2026-10-06T19:18:52Z
+id: 7
+priority: medium
+status: backlog
+tags:
+- bug
+- admin-api
+- pagination
+- twin
+- review-2026-10-06
+title: list_users returns at most Keycloak's default page (100 users) and says nothing
+  about it
+updated: 2026-10-06T19:18:52Z
+---
+
+`lib/WWW/Keycloak/Admin.pm:353` `list_users` is one `GET /users` with the caller's query passed through. Keycloak's `GET /admin/realms/{realm}/users` applies `max=100` when the parameter is absent, so `$admin->list_users` on a realm with more users returns the first 100 and looks complete. The POD (`Admin.pm:376-378`) only shows `max => 20` as an example and never mentions the cap; nothing in the module pages (`grep -n 'first\|max' lib/WWW/Keycloak/Admin.pm` finds the two POD examples only). WWW::Authentik solved the same problem with `_paged`.
+
+`find_user` is not affected (`username` + `exact`), so `ensure_user` is safe; the risk is a caller iterating `list_users` for a sync or audit and silently working on a subset.
+
+Not reproduced against a live Keycloak in this pass (no containers allowed) - confirm with the live suite: create 101 users, call `list_users`.
+
+Done: either `list_users` pages with `first`/`max` until a short page arrives (when the caller gave neither), or an explicit `list_all_users` does and the POD of `list_users` states the 100 cap; the live suite covers a realm with more than 100 users. Mirror in `Net::Async::Keycloak::Admin::list_users_f`.
+
+---
+Fleet review 2026-10-06 · kind: bug · confidence: plausible

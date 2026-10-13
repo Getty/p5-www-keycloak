@@ -267,7 +267,12 @@ sub _admin {
   # users
   if ( $rest eq '/users' ) {
     if ( $method eq 'GET' ) {
-      return $self->_reply( 200, [ grep { !defined $query->{username} || $_->{username} eq lc $query->{username} } map { my %u = %$_; delete $u{credentials}; \%u } sort { $a->{id} cmp $b->{id} } values %{ $realm->{users} } ] );
+      # like Keycloak: max defaults to 100 when the parameter is absent
+      my @users = grep { !defined $query->{username} || $_->{username} eq lc $query->{username} } map { my %u = %$_; delete $u{credentials}; \%u } sort { $a->{id} cmp $b->{id} } values %{ $realm->{users} };
+      my $first = $query->{first} // 0;
+      my $max   = $query->{max} // 100;
+      @users = $first > $#users ? () : @users[ $first .. ( $max < 0 ? $#users : $first + $max - 1 < $#users ? $first + $max - 1 : $#users ) ];
+      return $self->_reply( 200, \@users );
     }
     my $username = lc $body->{username};
     return $self->_reply( 409, { errorMessage => 'User exists with same username' } )

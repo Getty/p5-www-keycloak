@@ -355,6 +355,21 @@ sub delete_protocol_mapper {
 ####  users
 
 sub list_users  { my ( $self, %q ) = @_; $self->_data( GET => '/users'.$self->_query(%q) ) }
+
+sub list_all_users {
+  my ( $self, %q ) = @_;
+  WWW::Keycloak::Error::Validation->throw( message => 'list_all_users pages by itself, do not give first or max' ) if exists $q{first} || exists $q{max};
+  my $size = 100;
+  my ( $first, @users ) = (0);
+  while (1) {
+    my $page = $self->list_users( %q, first => $first, max => $size );
+    push @users, @$page;
+    last if @$page < $size;
+    $first += $size;
+  }
+  return \@users;
+}
+
 sub get_user    { $_[0]->_data( GET => '/users/'.$_[0]->_esc( $_[1] ) ) }
 sub create_user { $_[0]->_create( '/users', $_[1] ) }
 sub update_user { $_[0]->_done( PUT => '/users/'.$_[0]->_esc( $_[1] ), $_[2] ) }
@@ -381,6 +396,20 @@ sub logout_user       { $_[0]->_done( POST => '/users/'.$_[0]->_esc( $_[1] ).'/l
 =method list_users
 
     my $users = $admin->list_users( search => 'ali', max => 20 );
+
+One request, so Keycloak answers at most its default page of 100 users when
+C<max> is not given, whatever the realm holds. Use L</list_all_users> to get
+every user.
+
+=method list_all_users
+
+    my $users = $admin->list_all_users( enabled => 'true' );
+
+Every user of the realm: asks for pages of 100 with C<first> and C<max> until a
+short page arrives. Other query parameters, such as C<search>, are passed
+through; C<first> and C<max> are not accepted. Costs one request per 100 users
+and is not atomic, so users created or deleted meanwhile may be missed or
+seen twice.
 
 =method find_user
 

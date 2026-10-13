@@ -134,6 +134,25 @@ subtest 'no Location header' => sub {
   like( "$@", qr/sent no Location header/, 'and says why' );
 };
 
+subtest 'list_users is capped, list_all_users is not' => sub {
+  $fake->realm('main')->{users} = {};
+  $admin->create_user( { username => sprintf( 'u%03d', $_ ) } ) for 1 .. 101;
+  is( scalar @{ $admin->list_users }, 100, 'list_users stops at the default page of 100' );
+  is( scalar @{ $admin->list_users( max => 5, first => 99 ) }, 2, 'first and max are passed on' );
+  is( scalar @{ $admin->list_all_users }, 101, 'list_all_users returns all 101' );
+  my @ids = map { $_->{id} } @{ $admin->list_all_users };
+  my %seen; $seen{$_}++ for @ids;
+  is( scalar keys %seen, 101, 'without a repeat' );
+  is( scalar @{ $admin->list_all_users( username => 'u007' ) }, 1, 'other query parameters are passed through' );
+  $fake->realm('main')->{users} = {};
+  $admin->create_user( { username => sprintf( 'v%03d', $_ ) } ) for 1 .. 100;
+  is( scalar @{ $admin->list_all_users }, 100, 'exactly one full page ends on the empty page behind it' );
+  for my $key (qw( first max )) {
+    ok( !eval { $admin->list_all_users( $key => 1 ); 1 }, "$key is refused" );
+    isa_ok( $@, 'WWW::Keycloak::Error::Validation' );
+  }
+};
+
 subtest 'find_* without a key' => sub {
   for my $call ( [ find_client => 'clientId' ], [ find_client_scope => 'name' ], [ find_user => 'username' ] ) {
     my ( $method, $key ) = @$call;

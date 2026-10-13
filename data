@@ -1,0 +1,28 @@
+---
+class: standard
+completed: 2026-10-13T20:10:28Z
+created: 2026-10-06T19:18:57Z
+id: 8
+priority: low
+started: 2026-10-13T20:06:40Z
+status: done
+tags:
+- bug
+- auth
+- errors
+- twin
+- review-2026-10-06
+title: 'Auth: a login answered 2xx without access_token is cached as a token'
+updated: 2026-10-13T20:10:28Z
+---
+
+`lib/WWW/Keycloak/Auth.pm:185-198` `_grant` takes `$data->{access_token}` without checking it. `read_response` returns `data => undef` for a 2xx whose body is not JSON (a proxy's HTML page, a captive portal), so `_access` becomes undef and `_access_expires` is set 60 s ahead. `token` then returns undef, `Admin::call` (`Admin.pm:111-116`) sends the request without an `Authorization` header (`build_request` skips an undefined bearer), gets a 401, invalidates, logs in again with the same result and finally throws the 401 of the *Admin API* - the caller is told the token was refused, when in fact no token was ever issued.
+
+Same code in the twin: `p5-net-async-keycloak/lib/Net/Async/Keycloak/Auth.pm:170-184`.
+
+Done: `_grant` / `_grant_f` throw `Error::API` (`admin login failed: the token endpoint answered <status> without an access_token`) when `access_token` is missing or empty; a test in `t/` feeds a 200 with an HTML body.
+
+---
+Fleet review 2026-10-06 · kind: bug · confidence: verified
+
+2026-10-13 20:09 Done (4606c6d, Branch worktree-k6-k7-k8): Auth::_grant wirft Error::API 'admin login failed: the token endpoint answered <status> without an access_token' bei fehlendem/leerem access_token oder Nicht-JSON-2xx. Test t/31-auth-no-token.t (HTML, JSON ohne Token, leeres Token; genau 1 Request) war gegen altes lib rot (kein Fehler geworfen), prove -lr t gruen. API: keine neue Methode; _grant wirft jetzt in einem Fall, der zuvor einen undef-Token cachte. NET-ASYNC: Net::Async::Keycloak::Auth::_grant_f (Auth.pm ~170-184) gleich nachziehen; die Meldung soll identisch sein (Status aus dem Response, nicht fest 200). Offen: nichts.

@@ -65,4 +65,12 @@ subtest 'merge' => sub {
   is_deeply( $diff->merge( undef, { a => 1 } ), { a => 1 }, 'undef current' );
 };
 
+subtest '_bool is one value in list context' => sub {
+  for my $value ( [], {}, 'abc' ) {
+    my @list = $diff->_bool($value);
+    is( scalar @list, 1, 'one element for ' . ( defined $value ? ( ref $value || $value ) : 'undef' ) );
+  }
+  is( $diff->same( {}, 'true' ), 0, 'so a structure is never the same as a boolean' );
+};
+
 done_testing;

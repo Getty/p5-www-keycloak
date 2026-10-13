@@ -220,6 +220,7 @@ sub delete_client { $_[0]->_done( DELETE => '/clients/'.$_[0]->_esc( $_[1] ) ) }
 
 sub find_client {
   my ( $self, $client_id ) = @_;
+  WWW::Keycloak::Error::Validation->throw( message => 'find_client needs a clientId' ) unless defined $client_id && length $client_id;
   my ( $client ) = grep { $_->{clientId} eq $client_id } @{ $self->list_clients( clientId => $client_id ) };
   return $client;
 }
@@ -236,7 +237,9 @@ sub get_service_account_user { $_[0]->_data( GET => '/clients/'.$_[0]->_esc( $_[
 
     my $client = $admin->find_client('my-cli') or die 'no such client';
 
-By C<clientId>, the readable key. Everything else takes the internal C<id>.
+By C<clientId>, the readable key. Everything else takes the internal C<id>. Throws
+L<WWW::Keycloak::Error::Validation> when C<clientId> is undefined or empty,
+as do L</find_client_scope> and L</find_user> for their key.
 
 =method get_client
 
@@ -268,6 +271,7 @@ sub delete_client_scope { $_[0]->_done( DELETE => '/client-scopes/'.$_[0]->_esc(
 
 sub find_client_scope {
   my ( $self, $name ) = @_;
+  WWW::Keycloak::Error::Validation->throw( message => 'find_client_scope needs a name' ) unless defined $name && length $name;
   my ( $scope ) = grep { $_->{name} eq $name } @{ $self->list_client_scopes };
   return $scope;
 }
@@ -358,6 +362,7 @@ sub delete_user { $_[0]->_done( DELETE => '/users/'.$_[0]->_esc( $_[1] ) ) }
 
 sub find_user {
   my ( $self, $username ) = @_;
+  WWW::Keycloak::Error::Validation->throw( message => 'find_user needs a username' ) unless defined $username && length $username;
   my ( $user ) = grep { lc $_->{username} eq lc $username } @{ $self->list_users( username => $username, exact => 'true' ) };
   return $user;
 }

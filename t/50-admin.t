@@ -134,4 +134,18 @@ subtest 'no Location header' => sub {
   like( "$@", qr/sent no Location header/, 'and says why' );
 };
 
+subtest 'find_* without a key' => sub {
+  for my $call ( [ find_client => 'clientId' ], [ find_client_scope => 'name' ], [ find_user => 'username' ] ) {
+    my ( $method, $key ) = @$call;
+    for my $bad ( undef, '' ) {
+      my $before = scalar @{ $fake->requests };
+      my $ok = eval { $admin->$method($bad); 1 };
+      my $error = $@;
+      ok( !$ok && ref $error && $error->isa('WWW::Keycloak::Error::Validation'), "$method(" . ( defined $bad ? '""' : 'undef' ) . ") throws a validation error" );
+      like( ref $error ? $error->message : '', qr/\A$method needs a $key\z/, 'naming the missing key' );
+      is( scalar @{ $fake->requests }, $before, 'and asks Keycloak nothing' );
+    }
+  }
+};
+
 done_testing;

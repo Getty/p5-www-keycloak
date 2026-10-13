@@ -1,6 +1,8 @@
 Revision history for WWW-Keycloak
 
 {{$NEXT}}
+    - Admin: find_client, find_client_scope and find_user throw a validation error for an undefined or empty key instead of listing everything and comparing with undef
+    - Diff: _bool returns undef explicitly, so it is always one value in list context
     - WWW::Keycloak::Auth: a login answered 2xx without an access_token (a proxy's HTML page) throws an API error instead of being cached as a token
 
 0.001     2026-10-04 18:01:17Z

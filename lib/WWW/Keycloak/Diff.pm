@@ -115,10 +115,10 @@ sub _bool {
   my ( $self, $value ) = @_;
   return ${$value} ? 1 : 0 if ref $value eq 'SCALAR';
   return $value ? 1 : 0 if JSON::MaybeXS::is_bool($value);
-  return if ref $value;
+  return undef if ref $value;
   return 1 if $value eq 'true' || $value eq '1';
   return 0 if $value eq 'false' || $value eq '0' || $value eq '';
-  return;
+  return undef;
 }
 
 1;

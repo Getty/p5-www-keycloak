@@ -1,0 +1,31 @@
+---
+class: standard
+completed: 2026-10-13T20:10:22Z
+created: 2026-10-06T19:18:52Z
+id: 7
+priority: medium
+started: 2026-10-13T20:06:41Z
+status: done
+tags:
+- bug
+- admin-api
+- pagination
+- twin
+- review-2026-10-06
+title: list_users returns at most Keycloak's default page (100 users) and says nothing
+  about it
+updated: 2026-10-13T20:10:22Z
+---
+
+`lib/WWW/Keycloak/Admin.pm:353` `list_users` is one `GET /users` with the caller's query passed through. Keycloak's `GET /admin/realms/{realm}/users` applies `max=100` when the parameter is absent, so `$admin->list_users` on a realm with more users returns the first 100 and looks complete. The POD (`Admin.pm:376-378`) only shows `max => 20` as an example and never mentions the cap; nothing in the module pages (`grep -n 'first\|max' lib/WWW/Keycloak/Admin.pm` finds the two POD examples only). WWW::Authentik solved the same problem with `_paged`.
+
+`find_user` is not affected (`username` + `exact`), so `ensure_user` is safe; the risk is a caller iterating `list_users` for a sync or audit and silently working on a subset.
+
+Not reproduced against a live Keycloak in this pass (no containers allowed) - confirm with the live suite: create 101 users, call `list_users`.
+
+Done: either `list_users` pages with `first`/`max` until a short page arrives (when the caller gave neither), or an explicit `list_all_users` does and the POD of `list_users` states the 100 cap; the live suite covers a realm with more than 100 users. Mirror in `Net::Async::Keycloak::Admin::list_users_f`.
+
+---
+Fleet review 2026-10-06 · kind: bug · confidence: plausible
+
+2026-10-13 20:09 Done (a18fcf9), abwaertskompatible Variante der Karte: list_users unveraendert (eine Anfrage), POD nennt jetzt die 100er-Kappe; NEU list_all_users(%query) pagt mit first/max (Seitengroesse 100) bis eine kurze Seite kommt, reicht uebrige Query-Parameter durch, lehnt first/max mit Validation-Error ab. FakeKeycloak pagt jetzt wie Keycloak (max default 100). Test in t/50-admin.t: 101 User -> list_users 100, list_all_users 101 ohne Duplikate, genau 100 User endet sauber; gegen altes lib rot (list_all_users fehlt). NICHT gemacht: Live-Test mit >100 Usern (live Suite nur opt-in, hier nicht ausgefuehrt, ungetesteten Live-Code nicht blind geschrieben). Offen fuer Maintainer (Design vorbehalten): ob list_users selbst automatisch pagen soll (Verhalten bei >100 Usern aendert sich dann), Seitengroesse fest 100 ist, und ob list_all_users der gewuenschte Name ist. API: NEUE oeffentliche Methode list_all_users; list_users-Verhalten gleich. NET-ASYNC: list_all_users_f ergaenzen (Schleife ueber list_users_f mit first/max, gleiche Validation, Seitengroesse 100), POD von list_users_f um die Kappe ergaenzen.

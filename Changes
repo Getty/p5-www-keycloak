@@ -1,6 +1,7 @@
 Revision history for WWW-Keycloak
 
 {{$NEXT}}
+    - WWW::Keycloak::Auth: a login answered 2xx without an access_token (a proxy's HTML page) throws an API error instead of being cached as a token
 
 0.001     2026-10-04 18:01:17Z
     - WWW::Keycloak::Diff: compare a representation with the wanted state, without I/O

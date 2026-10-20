@@ -1,0 +1,42 @@
+---
+claimed_at: 2026-10-20T09:19:01Z
+claimed_by: k9-k13
+class: standard
+completed: 2026-10-20T09:19:01Z
+created: 2026-10-20T08:51:38Z
+id: 11
+priority: medium
+started: 2026-10-20T08:55:09Z
+status: done
+tags:
+- api
+- limits
+title: The pagination over the users needs a boundary
+updated: 2026-10-20T09:19:01Z
+---
+
+The pagination over the users has no boundary.
+
+lib/WWW/Keycloak/Admin.pm:364-369 breaks the loop only when @$page < $size. A page that is delivered again and again (a proxy that drops the first, or a server that ignores the first) never meets the condition.
+
+Failure case: the loop runs without end, hangs the process and lets the memory grow with the users that come again and again - without an error and without a way out. Authentik has this floor (API.pm:200-209, %seen).
+
+Decide: a %seen boundary over the pages is drawn, like in authentik.
+
+Commit 83511cb "Give the pagination over the users a floor (k11)".
+
+Der Boden: eine volle Seite, die keinen neuen User bringt, ist ein Fehler - WWW::Keycloak::Error::API mit http_status der Antwort und der Meldung "GET <realm>/users failed: 200 - page N brought no new user after M users". N ist die Seitennummer, M die Zahl der bisher gesehenen User. Kein stilles Ende wie bei authentik (dort bricht die Schleife nur ab).
+
+Gezählt wird die Seite am Inhalt (die ids der User), nicht am Offset: der Offset wächst bei jedem Schritt, ein Server, der first ignoriert, liefert aber dieselbe Seite. Eine Seite, die nur bekannte User bringt, ist der Beweis; eine Seite, die sich mit der vorherigen deckt, auch. Alternierende Seiten werden beim dritten Mal genauso gefangen, weil dann keine neue Seite mehr kommt.
+
+Reihenfolge: die Kurzseite (weniger als 100) beendet die Liste wie bisher - ein leeres oder kurzes Ende ist normal und kein Fehler.
+
+list_all_users holt die Seiten jetzt ueber call statt ueber list_users, weil der Fehler den Status der Antwort braucht; der Pfad wird wie in list_users gebaut.
+
+Nebenwirkung dokumentiert: die Seiten duerfen sich teilweise ueberschneiden (ein User, der waehrend des Pagens entsteht oder geloescht wird) - das ist erlaubt und fuehrt nicht zum Fehler.
+
+Rot-Nachweis: t/50-admin.t gegen das alte lib/: der Subtest 'the pagination over the users has a floor' schlaegt mit 4 fehlgeschlagenen Erwartungen fehl, kein die. Der Fake liefert nach 3 Seiten eine leere Seite, damit der alte Code endet und nicht haengt; die Fehlermeldung des alten Codes nennt 4 Seiten statt 2.
+
+2026-10-20 09:08 Erledigt: 83511cb. list_all_users bricht ab, wenn eine volle Seite keinen neuen User bringt: WWW::Keycloak::Error::API mit Status, Seite und Zahl der gesehenen User. Test in t/50-admin.t, vorher rot gegen das alte lib/ (4 fehlgeschlagene Erwartungen, kein die); volle Suite gruen (10 Dateien, 59 Tests, live uebersprungen).
+
+Erledigt in 83511cb, nach main gezogen. list_all_users bricht ab, wenn eine volle Seite keinen Nutzer bringt, der nicht schon gesehen wurde — ein Server, der first ignoriert, wuerde sonst endlos blettern. Der Fehler nennt die Seite und die Zahl der gesehenen Nutzer. Rot-Nachweis: t/50-admin.t ist gegen das alte lib/ rot (fehlgeschlagene Erwartungen, kein die).

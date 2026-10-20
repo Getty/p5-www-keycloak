@@ -36,6 +36,7 @@ my @runtime = qw(
 );
 my @test = qw(
   CryptX
+  IO::Compress::Gzip
   Test::More
 );
 

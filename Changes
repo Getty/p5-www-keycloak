@@ -21,6 +21,8 @@ Revision history for WWW-Keycloak
       token
     - Types::Standard is a declared prerequisite, so a fresh install loads
       the library
+    - IO::Compress::Gzip is a declared prerequisite, so a fresh install reads
+      a compressed answer in the tests
 
 0.001     2026-10-04 18:01:17Z
     - WWW::Keycloak::Diff: compare a representation with the wanted state, without I/O

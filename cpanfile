@@ -12,5 +12,6 @@ requires 'namespace::autoclean', '0.16';
 
 on test => sub {
     requires 'CryptX';
+    requires 'IO::Compress::Gzip';
     requires 'Test::More', '0.96';
 };

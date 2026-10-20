@@ -4,6 +4,8 @@ Revision history for WWW-Keycloak
     - The API error carries the body of the answer, cut at 500 characters
     - An answer that is not JSON is an error that names the status, the
       method and the path
+    - The token endpoint is checked: an answer without an access token is
+      an error that names the status, the method and the path
     - Admin: list_all_users pages through every user (list_users stays one request and is documented as capped at Keycloak's default page of 100)
     - Admin: find_client, find_client_scope and find_user throw a validation error for an undefined or empty key instead of listing everything and comparing with undef
     - Diff: _bool returns undef explicitly, so it is always one value in list context

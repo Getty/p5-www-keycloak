@@ -5,6 +5,7 @@ use Test::More;
 use lib 't/lib';
 
 use Crypt::PK::RSA;
+use HTTP::Response;
 use MIME::Base64 qw( encode_base64url );
 use FakeKeycloak;
 use WWW::Keycloak;
@@ -88,6 +89,49 @@ subtest 'token endpoint' => sub {
   ok( $oidc->refresh_token( $tokens->{refresh_token}, client_id => 'admin-cli' )->{access_token}, 'refresh_token' );
   ok( !eval { $oidc->password_token( username => 'a', password => 'b' ); 1 }, 'without client_id' );
   isa_ok( $@, 'WWW::Keycloak::Error::Validation' );
+};
+
+subtest 'a grant without a token is an error' => sub {
+  my $original = \&FakeKeycloak::_oidc;
+  no warnings 'redefine';
+  # a proxy in front of Keycloak answers 200 with a JSON page that has no token
+  local *FakeKeycloak::_oidc = sub {
+    my ( $self, $realm, $rest, $method, $body, $request ) = @_;
+    return $self->_reply( 200, { expires_in => 300 } ) if $rest eq 'protocol/openid-connect/token';
+    return $original->( $self, $realm, $rest, $method, $body, $request );
+  };
+  my $error = do { local $@; eval { $oidc->password_token( client_id => 'cli', username => 'alice', password => 'pw' ) }; $@ };
+  isa_ok( $error, 'WWW::Keycloak::Error::API', 'thrown' );
+  is( ref $error ? $error->http_status : undef, 200, 'with the status' );
+  like( ref $error ? $error->message : '', qr{\APOST http://kc\.test/realms/main/protocol/openid-connect/token failed: 200 - }, 'naming method, path and status' );
+  my $body = ref $error && $error->can('body') ? $error->body : undef;
+  is( $body, undef, 'and no body, a token answer can hold a token' );
+
+  # the calls that need no token keep working
+  ok( $oidc->introspect( 'user-token', client_id => 'api', client_secret => 's' )->{active}, 'introspect still answers' );
+  ok( $oidc->logout( refresh_token => 'r', client_id => 'cli' ), 'logout still works' );
+};
+
+subtest 'a 200 with an HTML page is an error' => sub {
+  my $original = \&FakeKeycloak::_oidc;
+  my $html = '<html><body>Please sign in</body></html>';
+  no warnings 'redefine';
+  local *FakeKeycloak::_oidc = sub {
+    my ( $self, $realm, $rest, $method, $body, $request ) = @_;
+    if ( $rest eq 'protocol/openid-connect/token' ) {
+      my $response = HTTP::Response->new( 200, 'OK' );
+      $response->header( 'Content-Type' => 'text/html' );
+      $response->content($html);
+      return $response;
+    }
+    return $original->( $self, $realm, $rest, $method, $body, $request );
+  };
+  my $error = do { local $@; eval { $oidc->password_token( client_id => 'cli', username => 'alice', password => 'pw' ) }; $@ };
+  isa_ok( $error, 'WWW::Keycloak::Error::API', 'thrown' );
+  is( ref $error ? $error->http_status : undef, 200, 'with the status' );
+  like( ref $error ? $error->message : '', qr/the answer is no JSON object/, 'saying that it is no JSON' );
+  my $body = ref $error && $error->can('body') ? $error->body : undef;
+  is( $body, $html, 'and the body that came' );
 };
 
 subtest 'device flow, one step at a time' => sub {

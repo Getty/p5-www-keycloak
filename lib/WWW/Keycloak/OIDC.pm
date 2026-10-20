@@ -29,6 +29,11 @@ An error from the token endpoint is a L<WWW::Keycloak::Error::API> whose
 C<oauth_error> carries the OAuth code, so a device-flow poll can tell
 C<authorization_pending> from a real failure.
 
+A grant that comes back without an access_token is an error, not a login: the
+caller would send an Authorization header without a token. Such an answer
+throws a L<WWW::Keycloak::Error::API> that names the status, the method and
+the path.
+
 =cut
 
 has issuer => (
@@ -312,14 +317,25 @@ Ends the session the refresh token belongs to.
 
 sub _grant {
   my ( $self, $type, $fields, %arg ) = @_;
-  return $self->_token_call( $self->token_endpoint, { grant_type => $type, map { $_ => $arg{$_} } grep { defined $arg{$_} } @$fields }, %arg );
+  return $self->_token_call( $self->token_endpoint, { grant_type => $type, map { $_ => $arg{$_} } grep { defined $arg{$_} } @$fields }, %arg, needs_access_token => 1 );
 }
 
 sub _token_call {
   my ( $self, $url, $form, %arg ) = @_;
   WWW::Keycloak::Error::Validation->throw( message => 'a client_id is needed' ) unless defined $arg{client_id};
   my %form = ( %$form, client_id => $arg{client_id}, defined $arg{client_secret} ? ( client_secret => $arg{client_secret} ) : () );
-  return $self->send_request( POST => $url, form => \%form )->{data} // {};
+  my $answer = $self->send_request( POST => $url, form => \%form );
+  my $data = $answer->{data} // {};
+  # a grant that comes back without a token is no login. Only the grants need
+  # one: introspect answers { active => ... } and the end session endpoint
+  # answers nothing at all.
+  if ( $arg{needs_access_token} && !( ref $data eq 'HASH' && defined $data->{access_token} && length $data->{access_token} ) ) {
+    $self->api_error_class->throw(
+      message     => 'POST '.$url.' failed: '.$answer->{status}.' - the answer has no access_token',
+      http_status => $answer->{status}
+    );
+  }
+  return $data;
 }
 
 1;

@@ -1,0 +1,19 @@
+---
+class: standard
+completed: 2026-10-13T20:10:17Z
+created: 2026-10-04T15:16:47Z
+id: 6
+priority: low
+started: 2026-10-13T20:06:42Z
+status: done
+tags:
+- review
+title: find_*(undef) fetches the whole table; Diff::_bool ends in a bare return
+updated: 2026-10-20T10:15:04Z
+---
+
+Two small findings from the WWW::Authentik review that also hold for the code here, neither with an observed wrong result. (1) find_client(undef) and find_user(undef) list everything and compare every row with undef, with warnings; WWW::Authentik throws a Validation error instead. (2) WWW::Keycloak::Diff::_bool ends in a bare return, and same() takes two of them in one list, so an empty return shifts the second value into the first slot; no case was found where the result is wrong, WWW::Authentik returns undef explicitly.
+
+2026-10-13 20:09 Done (14c559f): find_client/find_client_scope/find_user werfen Error::Validation ('find_client needs a clientId' / 'find_client_scope needs a name' / 'find_user needs a username') bei undef oder leerem Schluessel, ohne Request. Diff::_bool gibt explizit undef zurueck. Getestet in t/50-admin.t (alt: warnt + listet alles) und t/10-diff.t (_bool in Listenkontext liefert ein Element; alt: 0 Elemente, rot). Befund: _bool hat tatsaechlich keinen Fall mit falschem same()-Ergebnis, nur die Listen-Verschiebung; Test prueft daher die Eigenschaft direkt (privat). API-AENDERUNG (Verhaltensaenderung, nicht additiv): die drei find_* werfen jetzt bei leerem Schluessel statt zu warnen/alles zu listen; find_client_scope(undef) ist ueber die Karte hinaus mit abgedeckt, da gleiches Muster. NET-ASYNC: find_client_f, find_client_scope_f, find_user_f identisch validieren (Validation-Error; im Future als failed Future liefern oder synchron werfen - dort der dortigen Konvention folgen); Diff wird geteilt (Net::Async nutzt WWW::Keycloak::Diff), dort nichts zu tun ausser Versionspin. Offen: Maintainer soll bestaetigen, dass Validation-Throw (wie WWW::Authentik) gewollt ist.
+
+2026-10-20 Nachpruefung der Koordination: vier Eintraege des unreleased Blocks standen mit 85 bis 167 Spalten ueber der Hausgrenze von 78. Die Datei wurde umgebrochen, ohne ein Wort zu aendern. Commit a491cb4.

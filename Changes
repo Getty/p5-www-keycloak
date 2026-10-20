@@ -9,10 +9,16 @@ Revision history for WWW-Keycloak
     - The pagination over the users stops when a page brings nothing new
     - The declared prerequisites are checked by a test that reads the
       cpanfile
-    - Admin: list_all_users pages through every user (list_users stays one request and is documented as capped at Keycloak's default page of 100)
-    - Admin: find_client, find_client_scope and find_user throw a validation error for an undefined or empty key instead of listing everything and comparing with undef
-    - Diff: _bool returns undef explicitly, so it is always one value in list context
-    - WWW::Keycloak::Auth: a login answered 2xx without an access_token (a proxy's HTML page) throws an API error instead of being cached as a token
+    - Admin: list_all_users pages through every user (list_users stays one
+      request and is documented as capped at Keycloak's default page of 100)
+    - Admin: find_client, find_client_scope and find_user throw a validation
+      error for an undefined or empty key instead of listing everything and
+      comparing with undef
+    - Diff: _bool returns undef explicitly, so it is always one value in list
+      context
+    - WWW::Keycloak::Auth: a login answered 2xx without an access_token (a
+      proxy's HTML page) throws an API error instead of being cached as a
+      token
 
 0.001     2026-10-04 18:01:17Z
     - WWW::Keycloak::Diff: compare a representation with the wanted state, without I/O

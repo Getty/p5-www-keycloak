@@ -1,0 +1,38 @@
+---
+claimed_at: 2026-10-20T09:19:20Z
+claimed_by: k9-k13
+class: standard
+completed: 2026-10-20T09:19:20Z
+created: 2026-10-20T08:51:47Z
+id: 13
+priority: low
+started: 2026-10-20T08:55:19Z
+status: done
+tags:
+- cpanfile
+- test
+title: The declared prerequisites must be checked by a test
+updated: 2026-10-20T09:19:20Z
+---
+
+No test in t/ reads the cpanfile, and the 2xx answer without JSON is nowhere fed into find_client, find_user or list_all_users.
+
+Decide: a new t/cpanfile.t reads the cpanfile and checks every prerequisite that the code uses (/home/getty/dev/p5-www-vastai/t/cpanfile.t is the pattern to follow), and one test each for a 200 answer with HTML in the Admin and in the OIDC path.
+
+The tests that hold this down must be red against the old lib/ and fail as failed expectations, not as dies.
+
+Commit 7515d0a "Check the declared prerequisites with a test (k13)".
+
+t/cpanfile.t liest das cpanfile und prueft jede Voraussetzung, die der Code wirklich braucht: Crypt::JWT, HTTP::Message, JSON::MaybeXS, LWP::Protocol::https, LWP::UserAgent, Moo, Type::Tiny, URI, namespace::autoclean (Laufzeit) sowie CryptX und Test::More (Test). Dazu die Versionsgrenze von namespace::autoclean (>= 0.16), weil die kleinere Version eine Moo-Klasse zur Moose-Klasse aufblaeht.
+
+Die Liste ist gegen alle use-Zeilen in lib/ und t/ geprueft: Scalar::Util, MIME::Base64, Digest::SHA, IO::Compress::Gzip, File::Spec, FindBin und die Kernmodule brauchen keine Deklaration. Types::Standard, URI::Escape, Moo::Role und HTTP::Response stecken in Type::Tiny, URI, Moo und HTTP::Message.
+
+Der Test ist nicht rot gegen das alte lib/ - er liest nur das cpanfile und ist von lib/ unabhaengig. Das ist so vorgesehen.
+
+Die beiden anderen Tests der Karte gibt es bereits: der 200-mit-HTML im Admin-Pfad steckt in t/50-admin.t (Subtest 'an answer that is no JSON is an error', Commit 1a61888, k9), der 200-mit-HTML im OIDC-Pfad in t/60-oidc.t (Subtest 'a 200 with an HTML page is an error', Commit 624beb0, k10). Beide sind rot gegen das alte lib/ (12 bzw. 4 fehlgeschlagene Erwartungen, kein die) und gehoeren zu den Karten, die das Verhalten eingefuehrt haben - sie deshalb nicht in diesen Commit umziehen.
+
+Abweichung von der Hausregel: Das Test liest die Datei mit File::Spec und open, nicht mit Path::Tiny - Path::Tiny ist keine Voraussetzung dieser Distribution, und das Muster aus p5-www-vastai macht es so.
+
+2026-10-20 09:10 Erledigt: 7515d0a. t/cpanfile.t liest das cpanfile und prueft jede Voraussetzung, die der Code braucht, samt der Versionsgrenze von namespace::autoclean. Der Test ist unabhaengig von lib/ und deshalb nicht rot gegen das alte lib/ (vorgesehen). Die beiden 200-mit-HTML-Tests stecken in k9 (t/50-admin.t) und k10 (t/60-oidc.t) und sind beide rot gegen das alte lib/. Volle Suite gruen (11 Dateien, 72 Tests, live uebersprungen).
+
+Erledigt in 7515d0a, nach main gezogen. t/cpanfile.t liest das cpanfile und prueft die deklarierten Voraussetzungen (inkl. namespace::autoclean ab 0.16, damit die Moo-Klassen klein bleiben). Der Test prueft eine Datei und nicht das Verhalten — er ist gegen das alte lib/ gruen, das ist hier so vermerkt.

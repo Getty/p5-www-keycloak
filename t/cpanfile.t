@@ -30,6 +30,7 @@ my @runtime = qw(
   LWP::UserAgent
   Moo
   Type::Tiny
+  Types::Standard
   URI
   namespace::autoclean
 );

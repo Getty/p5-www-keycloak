@@ -6,6 +6,7 @@ requires 'LWP::Protocol::https';
 requires 'LWP::UserAgent';
 requires 'Moo';
 requires 'Type::Tiny';
+requires 'Types::Standard';
 requires 'URI';
 requires 'namespace::autoclean', '0.16';
 

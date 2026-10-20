@@ -1,0 +1,32 @@
+---
+claimed_at: 2026-10-20T16:20:29Z
+claimed_by: k14-keycloak
+class: standard
+completed: 2026-10-20T16:20:29Z
+created: 2026-10-20T16:14:03Z
+id: 14
+priority: medium
+started: 2026-10-20T16:20:29Z
+status: done
+tags:
+- release
+- prereq
+title: Das cpanfile nennt Types::Standard nicht
+updated: 2026-10-20T16:20:29Z
+---
+
+lib/WWW/Keycloak.pm:7 (ferner Admin.pm:8 und OIDC.pm:9) laedt Types::Standard (InstanceOf Str, ArrayRef CodeRef Int). Das cpanfile nennt nur Type::Tiny - Types::Standard ist eine eigene Distribution und kein Kernmodul. Ein frischer Install bricht deshalb beim Laden der Bibliothek ab, nicht beim Bauen.
+
+Ergaenzt wird `requires 'Types::Standard';` im cpanfile.
+
+t/cpanfile.t prueft heute eine hart kodierte Liste von Voraussetzungen; Types::Standard kommt dazu. Damit ist der Test gegen das alte cpanfile rot - der Nachweis, dass er die Luecke auch findet.
+
+2026-10-20 16:17 Done: cpanfile declares Types::Standard (alphabetical after Type::Tiny), t/cpanfile.t lists it among the runtime prerequisites, Changes got an entry under {$NEXT}. Red proof: against the old cpanfile (git show main:cpanfile) t/cpanfile.t failed with 'Types::Standard is a declared prerequisite' (14 tests, 1 failed); with the new cpanfile all 14 pass. Full suite offline: 11 files, 73 tests, all pass (live test skipped). Commit bc44e58 on branch k14-keycloak.
+
+2026-10-20 16:17 Also found: Type::Tiny is declared in the cpanfile but not used directly anywhere in lib/ or t/ - it is an indirect dependency via Types::Standard. Not changed, the card keeps Type::Tiny and adds Types::Standard.
+
+2026-10-20 16:17 Also found: a fourth module loads Types::Standard - lib/WWW/Keycloak/Auth.pm:7 - the card named only Keycloak.pm, Admin.pm and OIDC.pm. The declaration covers it.
+
+2026-10-20 16:18 Done: cpanfile declares Types::Standard, t/cpanfile.t checks it, Changes entry added. Red proof against the old cpanfile and green full suite (11 files, 73 tests) documented in the notes. Commit bc44e58 on k14-keycloak.
+
+2026-10-20 16:20 Koordinator: Commit bc44e58 liegt jetzt auf main (ff-only gemergt, kein Push). Roter Beweis vom Koordinator bestaetigt: mit dem alten cpanfile aus main ist t/cpanfile.t rot (1 von 14), mit dem neuen gruen; volle Suite 11 Dateien, 73 Tests, gruen.

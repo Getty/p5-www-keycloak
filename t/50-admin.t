@@ -4,12 +4,15 @@ use warnings;
 use Test::More;
 use lib 't/lib';
 
+use HTTP::Response;
 use FakeKeycloak;
 use WWW::Keycloak;
 
 my $fake = FakeKeycloak->new;
 my $kc   = WWW::Keycloak->new( base_url => $fake->base, realm => 'main', username => 'admin', password => 'admin', ua => $fake );
 my $admin = $kc->admin;
+
+sub error_of (&) { my ( $code ) = @_; eval { $code->(); 1 } ? undef : $@ }
 
 subtest 'realm' => sub {
   is( $admin->create_realm( { displayName => 'Main' } ), 'main', 'create_realm returns the realm name' );
@@ -164,6 +167,27 @@ subtest 'find_* without a key' => sub {
       like( ref $error ? $error->message : '', qr/\A$method needs a $key\z/, 'naming the missing key' );
       is( scalar @{ $fake->requests }, $before, 'and asks Keycloak nothing' );
     }
+  }
+};
+
+subtest 'an answer that is no JSON is an error' => sub {
+  my $html = '<html><body>Please sign in</body></html>';
+  no warnings 'redefine';
+  # a proxy or a captive portal answers 200 with a page of its own
+  local *FakeKeycloak::_admin = sub {
+    my $response = HTTP::Response->new( 200, 'OK' );
+    $response->header( 'Content-Type' => 'text/html' );
+    $response->content($html);
+    return $response;
+  };
+  for my $call ( [ find_client => 'cli' ], [ find_user => 'alice' ], [ list_all_users => () ] ) {
+    my ( $method, @arg ) = @$call;
+    my $error = error_of { $admin->$method(@arg) };
+    isa_ok( $error, 'WWW::Keycloak::Error::API', "$method: an API error" );
+    my $api = ref $error && $error->can('http_status') ? $error : undef;
+    is( $api ? $api->http_status : undef, 200, "$method: with the status" );
+    like( $api ? "$api" : "$error", qr{GET http://kc\.test/admin/realms/main/}, "$method: naming the request" );
+    is( $api ? $api->body : undef, $html, "$method: and the body that came" );
   }
 };
 

@@ -66,9 +66,21 @@ sub read_response {
   # decoded_content undoes a Content-Encoding, the raw content does not; with
   # charset => 'none' the bytes stay bytes, which the JSON codec decodes itself
   my $content = $response->decoded_content( charset => 'none' ) // '';
-  my $data    = length $content ? eval { $self->json_codec->decode($content) } : undef;
-  return { status => $response->code, data => $data, location => scalar $response->header('Location') }
-    if $response->is_success;
+  my $data;
+  eval { $data = $self->json_codec->decode($content) } if length $content;
+  if ( $response->is_success ) {
+    # a 2xx that is no JSON object is no answer this client can use: a proxy
+    # or a captive portal answers 200 with an HTML page. An empty body is
+    # fine, a 204 is normal.
+    if ( length $content && !( ref $data eq 'HASH' || ref $data eq 'ARRAY' ) ) {
+      $self->api_error_class->throw(
+        message     => $method.' '.$url.' failed: '.$response->status_line.' - the answer is no JSON object',
+        http_status => $response->code,
+        body        => substr( $content, 0, 500 )
+      );
+    }
+    return { status => $response->code, data => $data, location => scalar $response->header('Location') };
+  }
   my ( $message, $oauth );
   if ( ref $data eq 'HASH' ) {
     $message = $data->{errorMessage} // $data->{error};
@@ -94,8 +106,9 @@ sub read_response {
 
 Turns an L<HTTP::Response> into C<status>, the decoded C<data> and the
 C<location> header, or throws L</api_error_class> for any status of 400 and
-above. The error carries the body of the answer, cut at 500 characters, in
-its C<body>. C<%arg> are the arguments the request was built with.
+above and for a 2xx whose body is no JSON object. The error carries the body
+of the answer, cut at 500 characters, in its C<body>. C<%arg> are the
+arguments the request was built with.
 
 =cut
 
@@ -114,7 +127,8 @@ sub send_request {
 
 Sends one request. Returns C<status>, the decoded C<data> and the C<location>
 header. Throws L<WWW::Keycloak::Error::Network> when no answer came back and
-L<WWW::Keycloak::Error::API> for any status of 400 and above.
+L<WWW::Keycloak::Error::API> for any status of 400 and above and for a 2xx
+whose body is no JSON object.
 
 =cut
 

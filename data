@@ -1,0 +1,42 @@
+---
+claimed_at: 2026-10-20T09:18:51Z
+claimed_by: k9-k13
+class: standard
+completed: 2026-10-20T09:18:51Z
+created: 2026-10-20T08:51:33Z
+id: 10
+priority: high
+started: 2026-10-20T08:55:03Z
+status: done
+tags:
+- oidc
+- errors
+title: The OIDC path must check the answer of the token endpoint
+updated: 2026-10-20T09:18:51Z
+---
+
+The OIDC path does not check the answer of the token endpoint.
+
+lib/WWW/Keycloak/OIDC.pm:322 returns ->{data} // {} from _token_call, without looking at the status or at the form of the answer. The same repository does it right in the admin login (lib/WWW/Keycloak/Auth.pm:197-202), and the Changes file says so under {{$NEXT}}.
+
+Failure case: the token endpoint answers 200 with HTML (a proxy in front of it). password_token, client_credentials_token, refresh_token, exchange_authorization_code and device_token deliver {} without an exception. The caller believes the login has run, and sends Authorization: Bearer without a token.
+
+Decide: _token_call gets the same check as Auth.pm:197-202, and raises the API error with the status.
+
+The test that holds this down must be red against the old lib/ and fail as a failed expectation, not as a die.
+
+Commit 624beb0 "Check the answer of the token endpoint in the OIDC path (k10)".
+
+Grenze: die access_token-Pruefung gilt nur fuer die Grants (password, client_credentials, refresh_token, authorization_code, device_code). introspect antwortet { active => ... } und das End-Session-Endpoint antwortet leer - beide brauchen keinen Token und laufen ueber denselben _token_call, deshalb traegt _token_call ein Flag needs_access_token, das nur _grant setzt. Die Signatur von _token_call bleibt unveraendert, das Flag steckt in %arg.
+
+Der Fehler nennt Methode, Pfad und Status: "POST http://.../token failed: 200 - the answer has no access_token" und traegt http_status. Er traegt bewusst KEINEN Body: eine Token-Antwort kann ein id_token enthalten, und ein Fehler soll kein Token in sich tragen.
+
+Rot-Nachweis: t/60-oidc.t gegen das alte lib/: 6 fehlgeschlagene Erwartungen in 2 Subtests, kein die. Der Test haelt auch die Grenze fest: introspect und logout antworten weiterhin.
+
+Der Fall "200 mit HTML im OIDC-Pfad" (aus k13) liegt in diesem Commit: t/60-oidc.t, Subtest 'a 200 with an HTML page is an error'.
+
+TWIN-HINWEIS: p5-net-async-keycloak braucht dieselbe Pruefung: bei den Grants ohne access_token ein API-Fehler mit Status.
+
+2026-10-20 09:06 Erledigt: 624beb0. _token_call prueft die Antwort der Grants: ein 2xx ohne access_token wirft jetzt einen WWW::Keycloak::Error::API mit Status, Methode und Pfad. introspect und logout (kein Token noetig) bleiben unveraendert. Test in t/60-oidc.t, vorher rot gegen das alte lib/ (6 fehlgeschlagene Erwartungen, kein die); volle Suite gruen (10 Dateien, 58 Tests, live uebersprungen).
+
+Erledigt in 624beb0, nach main gezogen. Ein Grant, der ohne access_token zurueckkommt, wirft jetzt einen WWW::Keycloak::Error::API mit Status, Methode und Pfad — sonst wuerde der Aufrufer einen Authorization-Header ohne Token senden. introspect und logout brauchen keinen Token und arbeiten unveraendert weiter. Rot-Nachweis: t/60-oidc.t ist gegen das alte lib/ rot (fehlgeschlagene Erwartungen, kein die).

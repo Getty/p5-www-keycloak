@@ -1,0 +1,59 @@
+---
+class: standard
+completed: 2026-10-20T17:02:45Z
+created: 2026-10-20T16:47:25Z
+id: 15
+priority: medium
+started: 2026-10-20T17:02:45Z
+status: done
+tags:
+- release
+- prereq
+title: Die Distribution IO-Compress fehlt in den Voraussetzungen
+updated: 2026-10-20T17:02:45Z
+---
+
+t/20-errors.t laedt IO::Compress::Gzip ("require IO::Compress::Gzip" in einem
+Subtest). Das Modul stammt aus der Distribution IO-Compress, die seit Perl 5.20
+nicht mehr zum Kern gehoert - es ist ein CPAN-Modul, das der Installer
+nachziehen muss. Das cpanfile von WWW-Keycloak nennt diese Distribution nicht.
+
+Folge: bei einer frischen Installation ist das Modul nicht da. Der Subtest
+bricht dann ab, die Testdatei schlaegt fehl. Beim Bauen der Distribution faellt
+das nicht auf - es faellt erst auf einer Maschine, auf der das Modul fehlt.
+
+Am cpanfile genau eine Zeile, in der Test-Phase, alphabetisch zwischen CryptX
+und Test::More:
+
+    requires 'IO::Compress::Gzip';
+
+Der Test t/cpanfile.t bekommt IO::Compress::Gzip in der Liste der
+Test-Voraussetzungen (@test), alphabetisch zwischen CryptX und Test::More:
+
+  IO::Compress::Gzip
+
+Der Test akzeptiert eine Test-Voraussetzung in der Test- oder in der
+Laufzeit-Phase - nach der Aenderung steht sie in der Test-Phase, das genuegt.
+
+Der rote Beweis: der Test muss gegen das alte cpanfile rot sein. Belege ihn so
+und nenne das Ergebnis in der Abschlussmeldung:
+
+    cd <worktree>
+    cp cpanfile cpanfile.bak
+    git show main:cpanfile > cpanfile
+    prove -lr t/cpanfile.t     # muss rot sein
+    mv cpanfile.bak cpanfile
+    prove -lr t/cpanfile.t     # muss gruen sein
+
+cpanfile.bak ist nur eine Sicherung: sie wird nicht committet und am Ende
+geloescht.
+
+Aenderungen ausserhalb von cpanfile, t/cpanfile.t und Changes: nicht.
+Ein Changes-Eintrag unter {{$NEXT}} (ohne Kartennummern, bei 78 Spalten
+umbrochen). Commit-Betreff nennt die Karte als (kNN), kein #NN.
+
+2026-10-20 17:01 Commit 164b803 auf Branch k15-keycloak: cpanfile verlangt IO::Compress::Gzip in der Test-Phase, t/cpanfile.t prueft die Voraussetzung, Changes-Eintrag unter NEXT. Roter Beweis: mit altem cpanfile (git show main:cpanfile) faellt t/cpanfile.t mit 'IO::Compress::Gzip is a declared prerequisite' (Test 13 von 15) durch; mit neuem cpanfile gruen. Volle Suite: prove -lr t, 11 Dateien, 74 Tests, alle gruen (Live-Test uebersprungen).
+
+2026-10-20 17:01 IO::Compress::Gzip ist als Test-Voraussetzung deklariert; cpanfile.t haelt das fest. Commit 164b803, Suite gruen (74 Tests).
+
+Koordination: der Commit 164b803 steht auf main (ff-only gemergt). Der rote Beweis wurde nachgeprueft: gegen das alte cpanfile aus main ist 1 von 15 Tests rot (IO::Compress::Gzip fehlt im cpanfile), mit dem neuen cpanfile sind alle 15 gruen. Suite offline: 11 Dateien, 74 Tests, PASS.

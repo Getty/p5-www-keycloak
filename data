@@ -1,0 +1,44 @@
+---
+claimed_at: 2026-10-20T09:18:36Z
+claimed_by: k9-k13
+class: standard
+completed: 2026-10-20T09:18:36Z
+created: 2026-10-20T08:51:28Z
+id: 9
+priority: high
+started: 2026-10-20T08:54:58Z
+status: done
+tags:
+- http
+- errors
+title: An answer that is not JSON must be an error
+updated: 2026-10-20T09:18:36Z
+---
+
+The JSON parse error is swallowed.
+
+lib/WWW/Keycloak/Role/HTTP.pm:69 puts the JSON decode into the eval, but the error is never looked at. A 2xx answer without JSON gives data => undef.
+
+Failure case: Keycloak behind a proxy or a captive portal that answers 200 with HTML. $admin->find_client('my-app') dies with the raw Perl error "Can't use an undefined value as an ARRAY reference at lib/WWW/Keycloak/Admin.pm line 224" - without status, method and path, and without a WWW::Keycloak::Error, so it is not catchable with eval or try. The same shape is in find_user (Admin.pm:381) and list_all_users (Admin.pm:366).
+
+Decide: a 2xx answer whose body is no JSON object is raised as a WWW::Keycloak::Error::API with status, method and path.
+
+The test that holds this down must be red against the old lib/ and fail as a failed expectation, not as a die.
+
+Commit 1a61888 "Turn a 2xx that is no JSON into an API error (k9)".
+
+Regel: ein 2xx mit nicht leerem Body muss ein JSON-Objekt oder -Array dekodieren; ein leerer Body bleibt erlaubt (204 ist normal). Kein Keycloak-Endpunkt antwortet 2xx mit einem Skalar, die strenge Regel schliesst genau die Luecke, in der JSON null und find_client weiter mit einem rohen Perl-Fehler enden.
+
+Folge im Auth-Pfad: Auth::_grant hat den Transportfehler bis hierher zu "admin login failed: 200" umgeschrieben und Grund und Body verloren. _grant nimmt jetzt den Grund der API-Ausnahme (api_message, sonst die Meldung) und den Body mit, sonst bliebe im Admin-Login nur die Statuszahl.
+
+Kein Aufruf in diesem Repo braucht den rohen Body: der Realm-Export (Admin.pm:170) ist JSON.
+
+Rot-Nachweis: t/50-admin.t gegen das alte lib/ laufen lassen: 12 fehlgeschlagene Erwartungen, kein die. t/31-auth-no-token.t: 2 fehlgeschlagene Erwartungen, kein die.
+
+Also found: WWW::Keycloak::Error::API bekommt ein neues Attribut body (aus k12) und der 2xx-Check ist strenger - das aendert die oeffentliche API, der Zwilling p5-net-async-keycloak braucht eine Karte (von hier nicht zu machen).
+
+TWIN-HINWEIS: p5-net-async-keycloak braucht die Entsprechung: Error::API bekommt body, ein 2xx ohne JSON-Objekt wirft dort einen API-Fehler.
+
+2026-10-20 09:04 Erledigt: 1a61888. Ein 2xx, dessen Body kein JSON-Objekt und kein JSON-Array ist, wirft jetzt einen WWW::Keycloak::Error::API mit Status, Methode, Pfad und dem Body (aus k12). Ein leerer Body bleibt erlaubt. Test in t/50-admin.t, vorher rot gegen das alte lib/ (12 fehlgeschlagene Erwartungen, kein die); volle Suite gruen (10 Dateien, 56 Tests, live uebersprungen). Details siehe Notizen auf der Karte.
+
+Erledigt in 1a61888, nach main gezogen. Ein 2xx, dessen Body kein JSON-Objekt und kein JSON-Array ist, wirft jetzt einen WWW::Keycloak::Error::API mit Status, Methode und Pfad; ein leerer Body bleibt erlaubt (204 ist normal). Der Admin-Login uebernimmt zusaetzlich den Grund und den Body der Ausnahme, sonst bliebe nur die Statuszahl. Rot-Nachweis: t/50-admin.t und t/31-auth-no-token.t sind gegen das alte lib/ rot (fehlgeschlagene Erwartungen, kein die). Suite gruen: 11 Dateien, 72 Tests.

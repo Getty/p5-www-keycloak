@@ -4,6 +4,7 @@ use warnings;
 use Test::More;
 use lib 't/lib';
 
+use HTTP::Response;
 use Scalar::Util qw( blessed );
 use FakeKeycloak;
 use WWW::Keycloak;
@@ -49,8 +50,24 @@ subtest 'no answer at all' => sub {
   like( "$error", qr{GET http://127.0.0.1:9/realms/x/.well-known/openid-configuration: 500}, 'names the request' );
 };
 
+subtest 'the error carries the body' => sub {
+  my $answer = HTTP::Response->new( 502, 'Bad Gateway' );
+  $answer->content( '<html><body>502 Bad Gateway</body></html>' );
+  my $error = error_of { $kc->oidc->read_response( $answer, GET => 'http://kc.test/x' ) };
+  isa_ok( $error, 'WWW::Keycloak::Error::API' );
+  is( $error->http_status, 502, 'status' );
+  like( "$error", qr{GET http://kc.test/x failed: 502 Bad Gateway}, 'the message names the request' );
+  my $body = $error->can('body') ? $error->body : undef;
+  is( $body, '<html><body>502 Bad Gateway</body></html>', 'the body came with it' );
+
+  my $long = HTTP::Response->new( 504, 'Gateway Timeout' );
+  $long->content( 'x' x 900 );
+  my $cut = error_of { $kc->oidc->read_response( $long, GET => 'http://kc.test/x' ) };
+  my $snippet = $cut->can('body') ? $cut->body : undef;
+  is( length( $snippet // '' ), 500, 'a long body is cut at 500 characters' );
+};
+
 subtest 'a compressed answer is read like a plain one' => sub {
-  require HTTP::Response;
   require IO::Compress::Gzip;
   # one character as a JSON escape, one as the two bytes of its UTF-8 form
   my $json = '{"clientId":"my-cli","name":"Caf\u00e9 '."\xc3\xa9".'"}';

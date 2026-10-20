@@ -82,7 +82,9 @@ sub read_response {
     message     => $method.' '.$url.' failed: '.$response->status_line.( defined $message ? ' - '.$message : '' ),
     http_status => $response->code,
     api_message => $message,
-    oauth_error => $oauth
+    oauth_error => $oauth,
+    # what really came: the JSON of Keycloak's own error, or the HTML of a proxy
+    body        => length $content ? substr( $content, 0, 500 ) : undef
   );
 }
 
@@ -92,7 +94,8 @@ sub read_response {
 
 Turns an L<HTTP::Response> into C<status>, the decoded C<data> and the
 C<location> header, or throws L</api_error_class> for any status of 400 and
-above. C<%arg> are the arguments the request was built with.
+above. The error carries the body of the answer, cut at 500 characters, in
+its C<body>. C<%arg> are the arguments the request was built with.
 
 =cut
 

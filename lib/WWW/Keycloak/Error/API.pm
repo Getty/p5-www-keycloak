@@ -45,6 +45,17 @@ the error came from an OAuth endpoint.
 
 =cut
 
+has body => ( is => 'ro' );
+
+=attr body
+
+What came back, up to 500 characters: the JSON of Keycloak's own error, or the
+HTML or plain text of a proxy that answered instead of Keycloak. Undef when
+the body was empty. This is where to look when the URL points at something
+that is not a Keycloak.
+
+=cut
+
 sub is_not_found    { $_[0]->http_status == 404 ? 1 : 0 }
 sub is_conflict     { $_[0]->http_status == 409 ? 1 : 0 }
 sub is_unauthorized { $_[0]->http_status == 401 ? 1 : 0 }

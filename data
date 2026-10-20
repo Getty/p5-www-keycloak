@@ -1,0 +1,29 @@
+---
+claimed_at: 2026-10-20T09:19:11Z
+claimed_by: k9-k13
+class: standard
+completed: 2026-10-20T09:19:11Z
+created: 2026-10-20T08:51:42Z
+id: 12
+priority: low
+started: 2026-10-20T08:55:14Z
+status: done
+tags:
+- errors
+title: The API error must carry the body
+updated: 2026-10-20T09:19:11Z
+---
+
+The API error carries neither the body nor a snippet.
+
+lib/WWW/Keycloak/Role/HTTP.pm:81-86 puts only the message into the error. Authentik carries the body (Role/HTTP.pm:122-136).
+
+Failure case: a 502 or 504 of a proxy shows up only as "GET https://... failed: 502 Bad Gateway". The operator does not see what really came (an HTML error page, a JSON error).
+
+Decide: the error carries the body, cut at 500 characters, like in authentik.
+
+Body-Attribut in WWW::Keycloak::Error::API (analog authentik, gleiche Stelle), read_response legt den Body bei, auf 500 Zeichen gekuerzt. Der Fehler bleibt WWW::Keycloak::Error::API, der Text nennt weiter Methode, Pfad und Status. Test t/20-errors.t war gegen das alte lib rot (2 fehlgeschlagene Erwartungen, kein die). Suite: 55 Tests gruen. Commit 439c048.
+
+2026-10-20 09:00 Done: WWW::Keycloak::Error::API bekommt das Attribut body, read_response legt den Body (gekuerzt auf 500 Zeichen) bei. Der Fehler bleibt WWW::Keycloak::Error::API und nennt weiter Methode, Pfad und Status. Test in t/20-errors.t, gegen das alte lib rot. Suite 55 Tests gruen. Commit 439c048.
+
+Erledigt in 439c048, nach main gezogen. Der API-Fehler traegt den Body der Antwort (gekuerzt auf 500 Zeichen) in einem neuen Attribut body: damit sieht der Operator, was wirklich kam, zum Beispiel das HTML eines Proxys statt JSON. Das Attribut ist im POD beschrieben. Rot-Nachweis: t/20-errors.t ist gegen das alte lib/ rot (fehlgeschlagene Erwartungen, kein die).

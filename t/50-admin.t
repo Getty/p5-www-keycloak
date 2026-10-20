@@ -156,6 +156,24 @@ subtest 'list_users is capped, list_all_users is not' => sub {
   }
 };
 
+subtest 'the pagination over the users has a floor' => sub {
+  my @users = map { { id => 'u-'.$_, username => 'u'.$_ } } 1 .. 100;
+  my $pages = 0;
+  no warnings 'redefine';
+  # a server that ignores first and answers the same page again and again
+  local *FakeKeycloak::_admin = sub {
+    $pages++;
+    return $_[0]->_reply( 200, [] ) if $pages > 3;
+    return $_[0]->_reply( 200, \@users );
+  };
+  my $error = do { local $@; eval { $admin->list_all_users }; $@ };
+  isa_ok( $error, 'WWW::Keycloak::Error::API', 'thrown' );
+  is( ref $error ? $error->http_status : undef, 200, 'with the status' );
+  like( ref $error ? $error->message : '', qr{GET http://kc\.test/admin/realms/main/users failed: 200 - page 2 brought no new user after 100 users},
+    'naming the request, the page and the users seen' );
+  is( $pages, 2, 'and it stops at the second page' );
+};
+
 subtest 'find_* without a key' => sub {
   for my $call ( [ find_client => 'clientId' ], [ find_client_scope => 'name' ], [ find_user => 'username' ] ) {
     my ( $method, $key ) = @$call;

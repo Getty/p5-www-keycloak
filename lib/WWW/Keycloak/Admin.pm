@@ -361,8 +361,19 @@ sub list_all_users {
   WWW::Keycloak::Error::Validation->throw( message => 'list_all_users pages by itself, do not give first or max' ) if exists $q{first} || exists $q{max};
   my $size = 100;
   my ( $first, @users ) = (0);
+  my %seen;
   while (1) {
-    my $page = $self->list_users( %q, first => $first, max => $size );
+    my $result = $self->call( GET => '/users'.$self->_query( %q, first => $first, max => $size ) );
+    my $page = $result->{data} // [];
+    # a server that answers the same users again and again would page for
+    # ever; a page that brings nothing new is the floor under that
+    my $fresh = grep { !$seen{ $_->{id} // $_->{username} // '' }++ } @$page;
+    if ( @$page >= $size && !$fresh ) {
+      $self->api_error_class->throw(
+        message     => 'GET '.$self->realm_url.'/users failed: '.$result->{status}.' - page '.($first / $size + 1).' brought no new user after '.scalar(@users).' users',
+        http_status => $result->{status}
+      );
+    }
     push @users, @$page;
     last if @$page < $size;
     $first += $size;
@@ -410,6 +421,11 @@ short page arrives. Other query parameters, such as C<search>, are passed
 through; C<first> and C<max> are not accepted. Costs one request per 100 users
 and is not atomic, so users created or deleted meanwhile may be missed or
 seen twice.
+
+A page that brings no user that was not seen before is the end of the world:
+the server ignores C<first> and would answer the same page for ever. That
+throws a L<WWW::Keycloak::Error::API> that names the page and the number of
+users seen so far.
 
 =method find_user
 

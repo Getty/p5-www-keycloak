@@ -2,81 +2,81 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** `WWW::Keycloak` Phase 1 bauen: Fassade, Fehler, Admin-Anmeldung mit Token-Erneuerung, die Admin-REST-API mit wiederholbaren `ensure_*`-Methoden, OIDC, Unit-Tests gegen ein nachgebautes Keycloak und eine Live-Suite gegen ein echtes.
+**Goal:** Build `WWW::Keycloak` phase 1: facade, errors, admin login with token renewal, the Admin REST API with repeatable `ensure_*` methods, OIDC, unit tests against an emulated Keycloak and a live suite against a real one.
 
-**Architecture:** Moo-Klassen nach dem Muster von `WWW::Zitadel`. `WWW::Keycloak` ist die Fassade für einen Realm und baut `WWW::Keycloak::OIDC`, `WWW::Keycloak::Admin` und `WWW::Keycloak::Auth` mit einer gemeinsamen `LWP::UserAgent`. Das Senden und das Abbilden von Keycloaks Fehlerformen liegt in der Rolle `WWW::Keycloak::Role::HTTP`. Der Vergleich hinter `ensure_*` ist eine reine Funktion ohne I/O (`WWW::Keycloak::Diff`), damit der Async-Zwilling sie mitbenutzt.
+**Architecture:** Moo classes following the pattern of `WWW::Zitadel`. `WWW::Keycloak` is the facade for one realm and builds `WWW::Keycloak::OIDC`, `WWW::Keycloak::Admin` and `WWW::Keycloak::Auth` with one shared `LWP::UserAgent`. Sending and mapping Keycloak's error forms lives in the role `WWW::Keycloak::Role::HTTP`. The comparison behind `ensure_*` is a pure function without I/O (`WWW::Keycloak::Diff`), so the async twin can share it.
 
-**Tech Stack:** Perl 5.20+, Moo, Types::Standard, LWP::UserAgent, HTTP::Message, JSON::MaybeXS, Crypt::JWT, URI. Dist::Zilla mit `[@Author::GETTY]`.
+**Tech Stack:** Perl 5.20+, Moo, Types::Standard, LWP::UserAgent, HTTP::Message, JSON::MaybeXS, Crypt::JWT, URI. Dist::Zilla with `[@Author::GETTY]`.
 
-**Spec:** `docs/superpowers/specs/2026-10-02-www-keycloak-design.md` (freigegeben 2026-10-03).
+**Spec:** `docs/superpowers/specs/2026-10-02-www-keycloak-design.md` (approved 2026-10-03).
 
-## Ausführung
+## Execution
 
-Ausgeführt am 2026-10-03, ein Commit pro Aufgabe (`02e89b1` bis `2023833`). Danach hat ein
-unabhängiger Review mit Proben gegen das echte Keycloak Fehler gefunden, die in einem eigenen
-Commit behoben sind (Spec-Abschnitt 12); der Code im Repo weicht dort von den Listings unten
-ab. Maßgeblich ist das Repo.
+Executed on 2026-10-03, one commit per task (`02e89b1` to `2023833`). Afterwards an
+independent review with probes against the real Keycloak found bugs, which are fixed in a separate
+commit (spec section 12); the code in the repo differs from the listings below
+there. The repo is authoritative.
 
-## Stand des Codes in diesem Plan
+## State of the code in this plan
 
-Der gesamte Code ist am 2026-10-03 als Prototyp gelaufen: `prove -lr t` mit 53 Tests grün, `dzil test` im Endzustand grün, und `t/90-live-keycloak.t` grün gegen Keycloak 26.8.0 (Namespace `airlock-test` auf `cihq`). Der Live-Lauf hat zwei Eigenheiten aufgedeckt, die im Code berücksichtigt sind und die niemand „vereinfachen“ darf:
+All the code ran as a prototype on 2026-10-03: `prove -lr t` with 53 tests green, `dzil test` green in the final state, and `t/90-live-keycloak.t` green against Keycloak 26.8.0 (namespace `airlock-test` on `cihq`). The live run uncovered two quirks that the code accounts for and that nobody may "simplify":
 
-- Keycloak schreibt Nutzernamen und E-Mail-Adressen klein. `ensure_user` vergleicht deshalb klein.
-- Keycloak liefert die Werte einer Authenticator-Konfiguration beim Lesen als `**********`. `ensure_execution_config` kann sie weder vergleichen noch zusammenführen; es ersetzt die Konfiguration durch die übergebene und meldet bei jedem Lauf `updated`. Ein Zusammenführen würde die Sternchen als Werte zurückschreiben.
+- Keycloak lowercases usernames and email addresses. `ensure_user` therefore compares in lowercase.
+- Keycloak returns the values of an authenticator configuration as `**********` when read. `ensure_execution_config` can neither compare nor merge them; it replaces the configuration with the one passed in and reports `updated` on every run. Merging would write the asterisks back as values.
 
 ## Global Constraints
 
-- Laufzeit-Abhängigkeiten genau die im `cpanfile` aus Aufgabe 1.
-- Ein Paket pro Datei, jede Datei unter `lib/` mit `# ABSTRACT:` und `our $VERSION = '0.001';`.
-- Kein `require` zum verzögerten Laden unter `lib/`.
-- Jeder Fehler ist ein Objekt aus `WWW::Keycloak::Error::*`, geworfen mit `->throw`. Passwörter und Client-Secrets erscheinen in keiner Fehlermeldung.
-- Der Realm ist Teil der Adresse: Pflichtattribut der Fassade, kein Methodenparameter.
-- `ensure_*` vergleicht nur die übergebenen Schlüssel, schreibt nur bei Abweichung, löscht nie etwas und liefert `{ id, changed }` mit `changed` gleich `created`, `updated` oder leer.
-- Keycloak-Verhalten wird nicht aus dem Gedächtnis kodiert: Was das nachgebaute Keycloak in `t/lib/FakeKeycloak.pm` tut, ist das in Spec-Abschnitt 8 beobachtete.
-- Jede `.t`-Datei beginnt mit `#!/usr/bin/env perl`, `use strict; use warnings; use Test::More;` und endet mit `done_testing;`. Tests laufen mit `prove -lr t`.
-- Die Live-Suite läuft nur mit `KEYCLOAK_LIVE_TEST=1` und `KEYCLOAK_URL` und nie in einem parallelen Lauf.
-- **Niemand außer `www-keycloak-release-manager` committet.** Jede Aufgabe endet mit einem commit-fertigen Baum und einer Übergabe.
+- Runtime dependencies exactly those in the `cpanfile` from task 1.
+- One package per file, every file under `lib/` with `# ABSTRACT:` and `our $VERSION = '0.001';`.
+- No `require` for lazy loading under `lib/`.
+- Every error is an object from `WWW::Keycloak::Error::*`, thrown with `->throw`. Passwords and client secrets appear in no error message.
+- The realm is part of the address: a required attribute of the facade, not a method parameter.
+- `ensure_*` compares only the keys passed in, writes only on a difference, never deletes anything and returns `{ id, changed }` with `changed` equal to `created`, `updated` or empty.
+- Keycloak behavior is not coded from memory: what the emulated Keycloak in `t/lib/FakeKeycloak.pm` does is what was observed in spec section 8.
+- Every `.t` file starts with `#!/usr/bin/env perl`, `use strict; use warnings; use Test::More;` and ends with `done_testing;`. Tests run with `prove -lr t`.
+- The live suite runs only with `KEYCLOAK_LIVE_TEST=1` and `KEYCLOAK_URL` and never in a parallel run.
+- **Nobody except `www-keycloak-release-manager` commits.** Every task ends with a commit-ready tree and a handover.
 
 ## Review Focus
 
-1. **Ein Keycloak-Neustart mitten in einem Setup-Lauf.** Alle Tokens sind danach ungültig. Erwartet: genau ein neuer Login, dann geht es weiter; mit einem festen Token ein klarer 401. Test `a refused token is renewed once` in `t/50-admin.t` (Aufgabe 3).
-2. **Ein Setup, das zweimal läuft.** Erwartet: beim zweiten Mal kein einziger schreibender Aufruf außer bei Flow-Einstellungen. Tests mit `writes` in `t/51-admin-ensure.t` (Aufgabe 4) und `twice` in `t/90-live-keycloak.t` (Aufgabe 5).
-3. **Ein Passwort im Setup und ein zweiter Lauf.** Erwartet: Das Passwort wird nicht zurückgesetzt. Test `ensure_user` in `t/51-admin-ensure.t` (Aufgabe 4).
-4. **Flow-Einstellungen, die Keycloak maskiert zurückgibt.** Erwartet: niemals `**********` als Wert zurückgeschrieben. Test `ensure_execution_config` in `t/51-admin-ensure.t` (Aufgabe 4).
-5. **Ein Token, das nicht von diesem Realm stammt, abgelaufen ist, mit fremdem Schlüssel, mit HMAC oder mit `alg: none` signiert ist.** Erwartet: abgelehnt mit Validation-Fehler; ein Token mit neu rotiertem Schlüssel dagegen angenommen. Tests `verify_token` und `key rotation` in `t/60-oidc.t` (Aufgabe 3).
+1. **A Keycloak restart in the middle of a setup run.** All tokens are invalid afterwards. Expected: exactly one new login, then it continues; with a fixed token a clear 401. Test `a refused token is renewed once` in `t/50-admin.t` (task 3).
+2. **A setup that runs twice.** Expected: on the second run not a single writing call except for flow settings. Tests with `writes` in `t/51-admin-ensure.t` (task 4) and `twice` in `t/90-live-keycloak.t` (task 5).
+3. **A password in the setup and a second run.** Expected: the password is not reset. Test `ensure_user` in `t/51-admin-ensure.t` (task 4).
+4. **Flow settings that Keycloak returns masked.** Expected: never `**********` written back as a value. Test `ensure_execution_config` in `t/51-admin-ensure.t` (task 4).
+5. **A token that does not come from this realm, has expired, is signed with a foreign key, with HMAC or with `alg: none`.** Expected: rejected with a validation error; a token with a freshly rotated key, on the other hand, is accepted. Tests `verify_token` and `key rotation` in `t/60-oidc.t` (task 3).
 
-## Dateien
+## Files
 
-| Datei | Verantwortung | Aufgabe |
+| File | Responsibility | Task |
 |---|---|---|
-| `cpanfile` | Abhängigkeiten | 1 |
-| `lib/WWW/Keycloak/Diff.pm` | Vergleich ohne I/O | 1 |
-| `lib/WWW/Keycloak/Error.pm`, `Error/Validation.pm`, `Error/Network.pm`, `Error/API.pm` | Fehlerhierarchie | 2 |
-| `lib/WWW/Keycloak/Role/HTTP.pm` | Senden, JSON, Fehlerformen | 2 |
-| `lib/WWW/Keycloak/Auth.pm` | Admin-Token holen und erneuern | 2 |
-| `t/lib/FakeKeycloak.pm` | nachgebautes Keycloak für Unit-Tests | 2 |
+| `cpanfile` | dependencies | 1 |
+| `lib/WWW/Keycloak/Diff.pm` | comparison without I/O | 1 |
+| `lib/WWW/Keycloak/Error.pm`, `Error/Validation.pm`, `Error/Network.pm`, `Error/API.pm` | error hierarchy | 2 |
+| `lib/WWW/Keycloak/Role/HTTP.pm` | sending, JSON, error forms | 2 |
+| `lib/WWW/Keycloak/Auth.pm` | fetch and renew admin token | 2 |
+| `t/lib/FakeKeycloak.pm` | emulated Keycloak for unit tests | 2 |
 | `lib/WWW/Keycloak/OIDC.pm` | OIDC | 3 |
-| `lib/WWW/Keycloak/Admin.pm` | Admin-API, Grundoperationen | 3 |
-| `lib/WWW/Keycloak.pm` | Fassade (der Stub wird ersetzt) | 3 |
-| `lib/WWW/Keycloak/Admin.pm` (Abschnitt `ensure`) | wiederholbare Methoden | 4 |
-| `t/90-live-keycloak.t`, `t/keycloak/k8s.yaml`, `README.md` | Live-Suite, Wegwerf-Keycloak, Einstieg | 5 |
+| `lib/WWW/Keycloak/Admin.pm` | Admin API, basic operations | 3 |
+| `lib/WWW/Keycloak.pm` | facade (the stub is replaced) | 3 |
+| `lib/WWW/Keycloak/Admin.pm` (section `ensure`) | repeatable methods | 4 |
+| `t/90-live-keycloak.t`, `t/keycloak/k8s.yaml`, `README.md` | live suite, throwaway Keycloak, entry point | 5 |
 
-Reihenfolge: 1 → 2 → 3 → 4 → 5, jede baut auf der vorigen auf. Zuordnung zum Board: Aufgabe 1 bis 4 → Karten 2, 3 und 4 (2 Fassade und Fehler, 3 OIDC, 4 Admin), Aufgabe 5 → Karte 5.
+Order: 1 → 2 → 3 → 4 → 5, each builds on the previous one. Mapping to the board: tasks 1 to 4 → cards 2, 3 and 4 (2 facade and errors, 3 OIDC, 4 Admin), task 5 → card 5.
 
 ---
 
-### Task 1: Abhängigkeiten und `WWW::Keycloak::Diff`
+### Task 1: Dependencies and `WWW::Keycloak::Diff`
 
 **Files:**
-- Modify: `cpanfile` (ganz ersetzen)
+- Modify: `cpanfile` (replace entirely)
 - Create: `lib/WWW/Keycloak/Diff.pm`
 - Test: `t/10-diff.t`
 - Modify: `t/00-load.t`
 
 **Interfaces:**
-- Produces: `WWW::Keycloak::Diff->changes( \%current, \%wanted )` → HashRef der zu schreibenden Schlüssel (verschachtelte Hashes zusammengeführt), leer wenn nichts zu tun ist; `->merge( \%current, \%wanted )` → tief zusammengeführter Hash; `->same( $a, $b )` → 1/0.
+- Produces: `WWW::Keycloak::Diff->changes( \%current, \%wanted )` → HashRef of the keys to write (nested hashes merged), empty when there is nothing to do; `->merge( \%current, \%wanted )` → deeply merged hash; `->same( $a, $b )` → 1/0.
 
-- [ ] **Step 1: `cpanfile` ersetzen und installieren**
+- [ ] **Step 1: Replace `cpanfile` and install**
 
 `cpanfile`:
 
@@ -98,9 +98,9 @@ on test => sub {
 };
 ```
 
-Run: `cpanm --installdeps .` — Expected: endet ohne Fehler.
+Run: `cpanm --installdeps .` — Expected: finishes without errors.
 
-- [ ] **Step 2: Den Test schreiben**
+- [ ] **Step 2: Write the test**
 
 `t/10-diff.t`:
 
@@ -172,11 +172,11 @@ subtest 'merge' => sub {
 done_testing;
 ```
 
-- [ ] **Step 3: Test laufen lassen, er muss scheitern**
+- [ ] **Step 3: Run the test, it must fail**
 
-Run: `prove -lr t/10-diff.t` — Expected: FAIL mit `Can't locate WWW/Keycloak/Diff.pm in @INC`.
+Run: `prove -lr t/10-diff.t` — Expected: FAIL with `Can't locate WWW/Keycloak/Diff.pm in @INC`.
 
-- [ ] **Step 4: `lib/WWW/Keycloak/Diff.pm` schreiben**
+- [ ] **Step 4: Write `lib/WWW/Keycloak/Diff.pm`**
 
 `lib/WWW/Keycloak/Diff.pm`:
 
@@ -301,19 +301,19 @@ sub _bool {
 1;
 ```
 
-- [ ] **Step 5: Test laufen lassen**
+- [ ] **Step 5: Run the test**
 
 Run: `prove -lr t/10-diff.t` — Expected: PASS (3 Subtests).
 
-- [ ] **Step 6: Load-Test, Übergabe**
+- [ ] **Step 6: Load test, handover**
 
-`  WWW::Keycloak::Diff` in die Liste in `t/00-load.t`, `prove -lr t` — Expected: PASS. Commit-fertig lassen. Betreff: `Add WWW::Keycloak::Diff and declare dependencies`; `Changes`: `- WWW::Keycloak::Diff: compare a representation with the wanted state, without I/O`.
+Add `  WWW::Keycloak::Diff` to the list in `t/00-load.t`, `prove -lr t` — Expected: PASS. Leave it commit-ready. Subject: `Add WWW::Keycloak::Diff and declare dependencies`; `Changes`: `- WWW::Keycloak::Diff: compare a representation with the wanted state, without I/O`.
 
 ---
 
-### Task 2: Fehler, HTTP-Rolle, Admin-Anmeldung und das nachgebaute Keycloak
+### Task 2: Errors, HTTP role, admin login and the emulated Keycloak
 
-Spec: Abschnitte 4 und 7.
+Spec: sections 4 and 7.
 
 **Files:**
 - Create: `lib/WWW/Keycloak/Error.pm`, `lib/WWW/Keycloak/Error/Validation.pm`, `lib/WWW/Keycloak/Error/Network.pm`, `lib/WWW/Keycloak/Error/API.pm`
@@ -324,14 +324,14 @@ Spec: Abschnitte 4 und 7.
 
 **Interfaces:**
 - Produces:
-  - `WWW::Keycloak::Error::*->throw( message => ..., ... )`; `::API` mit `http_status` (Zahl), `api_message`, `oauth_error`, `is_not_found`, `is_conflict`, `is_unauthorized`.
-  - Rolle `WWW::Keycloak::Role::HTTP` (der Konsument hat ein Attribut `ua`): `send_request( $method, $url, json => \%body | form => \%fields, bearer => $token )` → `{ status, data, location }`; wirft `::Network` ohne Antwort, `::API` ab Status 400.
+  - `WWW::Keycloak::Error::*->throw( message => ..., ... )`; `::API` with `http_status` (number), `api_message`, `oauth_error`, `is_not_found`, `is_conflict`, `is_unauthorized`.
+  - Role `WWW::Keycloak::Role::HTTP` (the consumer has a `ua` attribute): `send_request( $method, $url, json => \%body | form => \%fields, bearer => $token )` → `{ status, data, location }`; throws `::Network` without a response, `::API` from status 400.
   - `WWW::Keycloak::Auth->new( ua =>, token_endpoint =>, username => + password => | client_id => + client_secret => | token =>, margin => 30, now => sub )`; `->token`, `->invalidate`, `->renewable`.
-  - Test-Fixture `FakeKeycloak->new( expires_in => $s )`: eine Unterklasse von `LWP::UserAgent`, die Keycloak im Speicher spielt; `->base`, `->logins`, `->requests`, `->realm($name)`, `->add_realm($name)`, `->forget_tokens`, `->rotate_key`, `->sign( \%claims, alg =>, key =>, kid => )`. Admin-Zugang: Nutzer `admin`, Passwort `admin`; Service-Account-Secret `secret`.
+  - Test fixture `FakeKeycloak->new( expires_in => $s )`: a subclass of `LWP::UserAgent` that plays Keycloak in memory; `->base`, `->logins`, `->requests`, `->realm($name)`, `->add_realm($name)`, `->forget_tokens`, `->rotate_key`, `->sign( \%claims, alg =>, key =>, kid => )`. Admin access: user `admin`, password `admin`; service account secret `secret`.
 
-- [ ] **Step 1: Das nachgebaute Keycloak schreiben**
+- [ ] **Step 1: Write the emulated Keycloak**
 
-Es antwortet so, wie das echte am 2026-10-02 und 2026-10-03 beobachtet wurde (Spec-Abschnitt 8), einschließlich der maskierten Flow-Einstellungen.
+It answers the way the real one was observed on 2026-10-02 and 2026-10-03 (spec section 8), including the masked flow settings.
 
 `t/lib/FakeKeycloak.pm`:
 
@@ -678,7 +678,7 @@ sub _mappers {
 1;
 ```
 
-- [ ] **Step 2: Den Test schreiben**
+- [ ] **Step 2: Write the test**
 
 `t/30-auth.t`:
 
@@ -766,11 +766,11 @@ subtest 'refusals' => sub {
 done_testing;
 ```
 
-- [ ] **Step 3: Test laufen lassen, er muss scheitern**
+- [ ] **Step 3: Run the test, it must fail**
 
-Run: `prove -lr t/30-auth.t` — Expected: FAIL mit `Can't locate WWW/Keycloak/Auth.pm in @INC`.
+Run: `prove -lr t/30-auth.t` — Expected: FAIL with `Can't locate WWW/Keycloak/Auth.pm in @INC`.
 
-- [ ] **Step 4: Die Fehlerklassen schreiben**
+- [ ] **Step 4: Write the error classes**
 
 `lib/WWW/Keycloak/Error.pm`:
 
@@ -927,9 +927,9 @@ True for status 404, 409 and 401.
 1;
 ```
 
-- [ ] **Step 5: Die HTTP-Rolle schreiben**
+- [ ] **Step 5: Write the HTTP role**
 
-Die Rolle verlangt `ua` nicht per `requires`, weil die Klassen sie direkt unter `use Moo` einbinden, bevor ihre Attribute existieren.
+The role does not demand `ua` via `requires`, because the classes include it directly under `use Moo`, before their attributes exist.
 
 `lib/WWW/Keycloak/Role/HTTP.pm`:
 
@@ -1010,7 +1010,7 @@ L<WWW::Keycloak::Error::API> for any status of 400 and above.
 1;
 ```
 
-- [ ] **Step 6: `lib/WWW/Keycloak/Auth.pm` schreiben**
+- [ ] **Step 6: Write `lib/WWW/Keycloak/Auth.pm`**
 
 `lib/WWW/Keycloak/Auth.pm`:
 
@@ -1219,35 +1219,35 @@ sub _grant {
 1;
 ```
 
-- [ ] **Step 7: Test laufen lassen**
+- [ ] **Step 7: Run the test**
 
 Run: `prove -lr t/30-auth.t` — Expected: PASS (6 Subtests).
 
-- [ ] **Step 8: Load-Test, Übergabe**
+- [ ] **Step 8: Load test, handover**
 
-`  WWW::Keycloak::Auth`, `  WWW::Keycloak::Error`, `  WWW::Keycloak::Error::API`, `  WWW::Keycloak::Error::Network`, `  WWW::Keycloak::Error::Validation`, `  WWW::Keycloak::Role::HTTP` in die Liste in `t/00-load.t`, `prove -lr t` — Expected: PASS. Betreff: `Add errors, HTTP role and admin login`; `Changes`: `- WWW::Keycloak::Auth: admin token by password, service account or fixed token, renewed before expiry`.
+Add `  WWW::Keycloak::Auth`, `  WWW::Keycloak::Error`, `  WWW::Keycloak::Error::API`, `  WWW::Keycloak::Error::Network`, `  WWW::Keycloak::Error::Validation`, `  WWW::Keycloak::Role::HTTP` to the list in `t/00-load.t`, `prove -lr t` — Expected: PASS. Subject: `Add errors, HTTP role and admin login`; `Changes`: `- WWW::Keycloak::Auth: admin token by password, service account or fixed token, renewed before expiry`.
 
 ---
 
-### Task 3: OIDC, Admin-Grundoperationen und die Fassade
+### Task 3: OIDC, Admin basic operations and the facade
 
-Spec: Abschnitte 2, 3, 5.1 und 6.
+Spec: sections 2, 3, 5.1 and 6.
 
 **Files:**
 - Create: `lib/WWW/Keycloak/OIDC.pm`
-- Create: `lib/WWW/Keycloak/Admin.pm` (ohne den Abschnitt `ensure`, der folgt in Aufgabe 4)
-- Modify: `lib/WWW/Keycloak.pm` (der Stub wird ganz ersetzt)
+- Create: `lib/WWW/Keycloak/Admin.pm` (without the `ensure` section, which follows in task 4)
+- Modify: `lib/WWW/Keycloak.pm` (the stub is replaced entirely)
 - Test: `t/20-errors.t`, `t/40-facade.t`, `t/50-admin.t`, `t/60-oidc.t`
 - Modify: `t/00-load.t`
 
 **Interfaces:**
-- Consumes: alles aus Aufgabe 2; `WWW::Keycloak::Diff` (nur als `diff_class`, benutzt erst in Aufgabe 4).
+- Consumes: everything from task 2; `WWW::Keycloak::Diff` (only as `diff_class`, used only in task 4).
 - Produces:
   - `WWW::Keycloak->new( base_url =>, realm =>, username =>, password =>, client_id =>, client_secret =>, token =>, auth_realm =>, ua => )`; `->issuer`, `->oidc`, `->admin`, `->auth`, `->for_realm($name)`.
   - `WWW::Keycloak::OIDC`: `discovery`, `endpoint($name)`, `token_endpoint`, `userinfo_endpoint`, `introspection_endpoint`, `end_session_endpoint`, `device_endpoint`, `jwks_uri`, `jwks( force_refresh => 1 )`, `verify_token( $jwt, audience => )`, `userinfo($token)`, `introspect( $token, client_id =>, client_secret => )`, `password_token(...)`, `client_credentials_token(...)`, `refresh_token( $refresh, ... )`, `exchange_authorization_code(...)`, `device_authorization(...)`, `device_token(...)`, `logout(...)`.
-  - `WWW::Keycloak::Admin`: `call( $method, $path, \%body )` sowie die Methoden aus Spec-Abschnitt 5.1.
+  - `WWW::Keycloak::Admin`: `call( $method, $path, \%body )` plus the methods from spec section 5.1.
 
-- [ ] **Step 1: Die Tests schreiben**
+- [ ] **Step 1: Write the tests**
 
 `t/20-errors.t`:
 
@@ -1584,11 +1584,11 @@ subtest 'userinfo, introspect, logout' => sub {
 done_testing;
 ```
 
-- [ ] **Step 2: Tests laufen lassen, sie müssen scheitern**
+- [ ] **Step 2: Run the tests, they must fail**
 
-Run: `prove -lr t/20-errors.t t/40-facade.t t/50-admin.t t/60-oidc.t` — Expected: FAIL; der Stub `WWW::Keycloak` hat kein `new` mit diesen Attributen.
+Run: `prove -lr t/20-errors.t t/40-facade.t t/50-admin.t t/60-oidc.t` — Expected: FAIL; the stub `WWW::Keycloak` has no `new` with these attributes.
 
-- [ ] **Step 3: `lib/WWW/Keycloak/OIDC.pm` schreiben**
+- [ ] **Step 3: Write `lib/WWW/Keycloak/OIDC.pm`**
 
 `lib/WWW/Keycloak/OIDC.pm`:
 
@@ -1871,9 +1871,9 @@ sub _token_call {
 1;
 ```
 
-- [ ] **Step 4: `lib/WWW/Keycloak/Admin.pm` schreiben**
+- [ ] **Step 4: Write `lib/WWW/Keycloak/Admin.pm`**
 
-Die Methoden sind absichtlich dünn: ein Endpunkt je Methode. `create_*` liest die ID aus dem `Location`-Header, weil Keycloak beim Anlegen keinen Body schickt.
+The methods are deliberately thin: one endpoint per method. `create_*` reads the ID from the `Location` header, because Keycloak sends no body on creation.
 
 `lib/WWW/Keycloak/Admin.pm`:
 
@@ -2324,7 +2324,7 @@ Works on the built-in flows too.
 1;
 ```
 
-- [ ] **Step 5: `lib/WWW/Keycloak.pm` ersetzen**
+- [ ] **Step 5: Replace `lib/WWW/Keycloak.pm`**
 
 `lib/WWW/Keycloak.pm`:
 
@@ -2567,29 +2567,29 @@ login.
 1;
 ```
 
-- [ ] **Step 6: Tests laufen lassen**
+- [ ] **Step 6: Run the tests**
 
-Run: `prove -lr t/20-errors.t t/40-facade.t t/50-admin.t t/60-oidc.t` — Expected: PASS (3, 3, 7 und 6 Subtests). `t/20-errors.t` braucht dabei einen Moment, weil ein Subtest gegen einen geschlossenen Port läuft.
+Run: `prove -lr t/20-errors.t t/40-facade.t t/50-admin.t t/60-oidc.t` — Expected: PASS (3, 3, 7 and 6 subtests). `t/20-errors.t` takes a moment, because one subtest runs against a closed port.
 
-- [ ] **Step 7: Load-Test, Übergabe**
+- [ ] **Step 7: Load test, handover**
 
-`  WWW::Keycloak::Admin` und `  WWW::Keycloak::OIDC` in die Liste in `t/00-load.t` (`WWW::Keycloak` steht schon drin), `prove -lr t` — Expected: PASS. Betreff: `Add OIDC, Admin API and the facade`; `Changes`: `- WWW::Keycloak facade with OIDC (discovery, verify_token, all grants, device flow steps) and the Admin REST API for realms, clients, client scopes, protocol mappers, users and authentication flows`.
+Add `  WWW::Keycloak::Admin` and `  WWW::Keycloak::OIDC` to the list in `t/00-load.t` (`WWW::Keycloak` is already in it), `prove -lr t` — Expected: PASS. Subject: `Add OIDC, Admin API and the facade`; `Changes`: `- WWW::Keycloak facade with OIDC (discovery, verify_token, all grants, device flow steps) and the Admin REST API for realms, clients, client scopes, protocol mappers, users and authentication flows`.
 
 ---
 
 ### Task 4: `ensure_*`
 
-Spec: Abschnitt 5.2.
+Spec: section 5.2.
 
 **Files:**
-- Modify: `lib/WWW/Keycloak/Admin.pm` (Abschnitt `ensure` vor dem schließenden `1;` einfügen)
+- Modify: `lib/WWW/Keycloak/Admin.pm` (insert the `ensure` section before the closing `1;`)
 - Test: `t/51-admin-ensure.t`
 
 **Interfaces:**
-- Consumes: Grundoperationen aus Aufgabe 3, `WWW::Keycloak::Diff->changes`.
-- Produces: `ensure_realm(%rep)`, `ensure_client(%rep)`, `ensure_client_scope(%rep)`, `ensure_protocol_mapper( client => $clientId | client_scope => $name, %rep )`, `ensure_user(%rep)`, `ensure_execution_config( flow =>, authenticator =>, config =>, alias => )`, alle mit Rückgabe `{ id => ..., changed => 'created' | 'updated' | '' }`.
+- Consumes: basic operations from task 3, `WWW::Keycloak::Diff->changes`.
+- Produces: `ensure_realm(%rep)`, `ensure_client(%rep)`, `ensure_client_scope(%rep)`, `ensure_protocol_mapper( client => $clientId | client_scope => $name, %rep )`, `ensure_user(%rep)`, `ensure_execution_config( flow =>, authenticator =>, config =>, alias => )`, all returning `{ id => ..., changed => 'created' | 'updated' | '' }`.
 
-- [ ] **Step 1: Den Test schreiben**
+- [ ] **Step 1: Write the test**
 
 `t/51-admin-ensure.t`:
 
@@ -2696,13 +2696,13 @@ subtest 'ensure_execution_config' => sub {
 done_testing;
 ```
 
-- [ ] **Step 2: Test laufen lassen, er muss scheitern**
+- [ ] **Step 2: Run the test, it must fail**
 
-Run: `prove -lr t/51-admin-ensure.t` — Expected: FAIL mit `Can't locate object method "ensure_realm" via package "WWW::Keycloak::Admin"`.
+Run: `prove -lr t/51-admin-ensure.t` — Expected: FAIL with `Can't locate object method "ensure_realm" via package "WWW::Keycloak::Admin"`.
 
-- [ ] **Step 3: Den Abschnitt `ensure` in `lib/WWW/Keycloak/Admin.pm` einfügen**
+- [ ] **Step 3: Insert the `ensure` section into `lib/WWW/Keycloak/Admin.pm`**
 
-Direkt vor dem abschließenden `1;`:
+Directly before the final `1;`:
 
 ```perl
 ####  ensure
@@ -2863,25 +2863,25 @@ reported as C<updated> on every run.
 
 ```
 
-- [ ] **Step 4: Tests laufen lassen**
+- [ ] **Step 4: Run the tests**
 
-Run: `prove -lr t/51-admin-ensure.t` — Expected: PASS (5 Subtests). Dann `prove -lr t` — Expected: PASS.
+Run: `prove -lr t/51-admin-ensure.t` — Expected: PASS (5 subtests). Then `prove -lr t` — Expected: PASS.
 
-- [ ] **Step 5: Übergabe**
+- [ ] **Step 5: Handover**
 
-Betreff: `Add ensure methods to the Admin API`; `Changes`: `- ensure_realm, ensure_client, ensure_client_scope, ensure_protocol_mapper, ensure_user, ensure_execution_config: repeatable setup that writes only what differs`.
+Subject: `Add ensure methods to the Admin API`; `Changes`: `- ensure_realm, ensure_client, ensure_client_scope, ensure_protocol_mapper, ensure_user, ensure_execution_config: repeatable setup that writes only what differs`.
 
 ---
 
-### Task 5: Live-Suite, Wegwerf-Keycloak, README
+### Task 5: Live suite, throwaway Keycloak, README
 
-Spec: Abschnitt 10. Braucht ein laufendes Keycloak für Schritt 3; Schritte 1, 2 und 4 gehen ohne.
+Spec: section 10. Needs a running Keycloak for step 3; steps 1, 2 and 4 work without.
 
 **Files:**
 - Create: `t/90-live-keycloak.t`, `t/keycloak/k8s.yaml`
-- Modify: `README.md` (ganz ersetzen)
+- Modify: `README.md` (replace entirely)
 
-- [ ] **Step 1: Live-Suite und Manifest schreiben**
+- [ ] **Step 1: Write the live suite and manifest**
 
 `t/90-live-keycloak.t`:
 
@@ -3092,7 +3092,7 @@ spec:
 
 Run: `prove -lr t/90-live-keycloak.t` — Expected: `skipped: set KEYCLOAK_LIVE_TEST=1 and KEYCLOAK_URL to run the Keycloak live test`.
 
-- [ ] **Step 2: `README.md` ersetzen**
+- [ ] **Step 2: Replace `README.md`**
 
 `README.md`:
 
@@ -3155,12 +3155,12 @@ This library is free software; you can redistribute it and/or modify it under
 the same terms as Perl itself.
 ````
 
-- [ ] **Step 3: Gegen ein echtes Keycloak laufen lassen**
+- [ ] **Step 3: Run against a real Keycloak**
 
-Wenn keines läuft: nach den Kommentaren in `t/keycloak/k8s.yaml` starten.
+If none is running: start one following the comments in `t/keycloak/k8s.yaml`.
 Run: `KEYCLOAK_LIVE_TEST=1 KEYCLOAK_URL=http://<node>:<nodeport> prove -lv t/90-live-keycloak.t`
-Expected: PASS (4 Subtests), `diag` nennt die Keycloak-Version. Der Test löscht seinen Realm am Ende, auch wenn er scheitert (`END`-Block). Wenn er abbricht, bevor `$admin` existiert, bleibt nichts zurück.
+Expected: PASS (4 subtests), `diag` names the Keycloak version. The test deletes its realm at the end, even if it fails (`END` block). If it aborts before `$admin` exists, nothing is left behind.
 
-- [ ] **Step 4: Alles laufen lassen, Übergabe**
+- [ ] **Step 4: Run everything, handover**
 
-Run: `prove -lr t && dzil test` — Expected: beide PASS. Betreff: `Add live suite, Kubernetes manifest and README`; `Changes`: `- Live tests against a real Keycloak behind KEYCLOAK_LIVE_TEST`.
+Run: `prove -lr t && dzil test` — Expected: both PASS. Subject: `Add live suite, Kubernetes manifest and README`; `Changes`: `- Live tests against a real Keycloak behind KEYCLOAK_LIVE_TEST`.

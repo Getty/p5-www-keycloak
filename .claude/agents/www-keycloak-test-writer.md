@@ -2,11 +2,10 @@
 name: www-keycloak-test-writer
 description: "Write WWW-Keycloak tests with Test::More. Never run the live suites — they hit a real Keycloak and are opt-in only. Use for test additions, regression scaffolding, and coverage of a named behavior."
 model: sonnet
-briefing:
-  skills:
-    - www-keycloak-core
-    - getty-perl-core
-    - kanban-issues-karr-ticket
+skills:
+  - www-keycloak-core
+  - getty-perl-core
+  - kanban-issues-karr-ticket
 ---
 
 You are the www-keycloak-test-writer for **WWW-Keycloak**, the synchronous Perl client for Keycloak (OIDC plus Admin REST API).
